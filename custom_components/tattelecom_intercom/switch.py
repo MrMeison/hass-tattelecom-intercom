@@ -7,9 +7,9 @@ import logging
 from typing import Any, Final
 
 from homeassistant.components.switch import (
-    ENTITY_ID_FORMAT,
     SwitchEntity,
     SwitchEntityDescription,
+    ENTITY_ID_FORMAT,
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import STATE_OFF, STATE_ON
@@ -74,88 +74,39 @@ async def async_setup_entry(
 
 # pylint: disable=too-many-ancestors
 class IntercomSwitch(IntercomEntity, SwitchEntity):
-    """Intercom switch entry."""
+    """Intercom switch."""
 
-    _attr_field: str
+    entity_description: SwitchEntityDescription
 
     def __init__(
         self,
         unique_id: str,
-        entity: IntercomEntityDescription,
+        description: SwitchEntityDescription,
         updater: IntercomUpdater,
     ) -> None:
-        """Initialize switch.
+        """Initialize switch."""
+        super().__init__(unique_id, description, updater, ENTITY_ID_FORMAT)
 
-        :param unique_id: str: Unique ID
-        :param entity: IntercomEntityDescription object
-        :param updater: IntercomUpdater: Intercom updater object
-        """
-
-        _description: SwitchEntityDescription = SwitchEntityDescription(
-            key=str(entity.id),
-            name=SWITCH_MUTE_NAME,
-            entity_category=EntityCategory.CONFIG,
-            entity_registry_enabled_default=True,
-        )
-
-        IntercomEntity.__init__(
-            self, unique_id, _description, updater, ENTITY_ID_FORMAT
-        )
-
-        self._attr_device_info = entity.device_info
-
-        self._attr_field = f"{_description.key}_{ATTR_MUTE}"
-
-        self._attr_is_on = bool(updater.data.get(self._attr_field, False))
-
-        self._change_icon(self._attr_is_on)
-
-    def _handle_coordinator_update(self) -> None:
-        """Update state."""
-
-        is_on: bool = self._updater.data.get(self._attr_field, False)
-
-        if self._attr_is_on == is_on:  # type: ignore
-            return
-
-        self._attr_is_on = is_on
-
-        self._change_icon(self._attr_is_on)
-
-        self.async_write_ha_state()
+        self._attr_is_on = bool(updater.data.get(f"{description.key}_{ATTR_MUTE}", False))
 
     async def async_turn_on(self, **kwargs: Any) -> None:
-        """Set turn on
-
-        :param **kwargs: Any
-        """
-
+        """Turn the switch on."""
         try:
             await self._updater.client.mute(int(self.entity_description.key))
-
             self._attr_is_on = True
-            self._change_icon(self._attr_is_on)
-            self._updater.update_data(self._attr_field, self._attr_is_on)
-        except IntercomError as _err:
-            _LOGGER.error("An error occurred while enabling mute: %r", _err)
-
+            self._updater.update_data(f"{self.entity_description.key}_{ATTR_MUTE}", True)
+        except IntercomError as err:
+            _LOGGER.error("Failed to turn on: %s", err)
         self.async_write_ha_state()
 
     async def async_turn_off(self, **kwargs: Any) -> None:
-        """Set turn off
-
-        :param **kwargs: Any
-        """
-
+        """Turn the switch off."""
         try:
             await self._updater.client.unmute(int(self.entity_description.key))
-
             self._attr_is_on = False
-            self._change_icon(self._attr_is_on)
-            self._updater.update_data(self._attr_field, self._attr_is_on)
-        except IntercomError as _err:
-            _LOGGER.error("An error occurred while disabling mute: %r", _err)
-
+            self._updater.update_data(f"{self.entity_description.key}_{ATTR_MUTE}", False)
+        except IntercomError as err:
+            _LOGGER.error("Failed to turn off: %s", err)
         self.async_write_ha_state()
 
     def _change_icon(self, is_on: bool) -> None:

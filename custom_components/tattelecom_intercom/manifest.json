@@ -11,6 +11,7 @@
     "http"
   ],
   "documentation": "https://github.com/dmamontov/hass-tattelecom-intercom/wiki",
+  "homeassistant": "2025.2.0",
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/dmamontov/hass-tattelecom-intercom/issues",
   "quality_scale": "platinum",

@@ -10,10 +10,10 @@ from dataclasses import dataclass
 from datetime import timedelta
 from functools import cached_property
 from random import randint
-from typing import Any
+from typing import Any, Final
 
 from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
-from homeassistant.exceptions import ConfigEntryAuthFailed
+from homeassistant.exceptions import ConfigEntryAuthFailed, UpdateFailed
 from homeassistant.helpers import event
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.entity import DeviceInfo
@@ -54,8 +54,8 @@ _LOGGER = logging.getLogger(__name__)
 
 
 # pylint: disable=too-many-branches,too-many-lines,too-many-arguments
-class IntercomUpdater(DataUpdateCoordinator):
-    """Tattelecom Intercom data updater for interaction with Tattelecom intercom API."""
+class IntercomUpdater(DataUpdateCoordinator[dict[str, Any]]):
+    """Tattelecom Intercom data updater."""
 
     client: IntercomClient
 
@@ -79,19 +79,20 @@ class IntercomUpdater(DataUpdateCoordinator):
         scan_interval: int = DEFAULT_SCAN_INTERVAL,
         timeout: int = DEFAULT_TIMEOUT,
     ) -> None:
-        """Initialize updater.
-
-        :rtype: object
-        :param hass: HomeAssistant: Home Assistant object
-        :param phone: int: Phone number
-        :param token: str: Token
-        :param scan_interval: int: Update interval
-        :param timeout: int: Query execution timeout
-        """
-
-        _transport: AsyncHTTPTransport = AsyncHTTPTransport(
-            http1=False, http2=True, retries=3
+        """Initialize updater."""
+        
+        super().__init__(
+            hass,
+            _LOGGER,
+            name=f"{NAME} updater",
+            update_interval=timedelta(seconds=scan_interval),
         )
+
+        self.phone = phone
+        self.token = token
+        self._scan_interval = scan_interval
+        
+        _transport = AsyncHTTPTransport(http1=False, http2=True, retries=3)
         self.client = IntercomClient(
             create_async_httpx_client(
                 hass, True, http1=False, http2=True, transport=_transport
@@ -101,26 +102,21 @@ class IntercomUpdater(DataUpdateCoordinator):
             timeout,
         )
 
-        self.phone = phone
-
-        self._scan_interval = scan_interval
-
-        if hass is not None:
-            super().__init__(
-                hass,
-                _LOGGER,
-                name=f"{NAME} updater",
-                update_interval=self._update_interval,
-                update_method=self.update,
-            )
-
-        self.data: dict[str, Any] = {}
-
-        self.intercoms: dict[str, IntercomEntityDescription] = {}
-
+        self.voip: IntercomVoip | None = None
+        self.last_call: Call | None = None
+        self.code = codes.BAD_GATEWAY
+        self.new_intercom_callbacks: list[CALLBACK_TYPE] = []
+        self.intercoms: dict[int, IntercomEntityDescription] = {}
         self.code_map: dict[str, int] = {}
 
-        self._is_first_update: bool = True
+    async def _async_update_data(self) -> dict[str, Any]:
+        """Update data."""
+        try:
+            data: dict = {}
+            await self._async_prepare_intercoms(data)
+            return data
+        except Exception as exc:
+            raise UpdateFailed(f"Error communicating with API: {exc}") from exc
 
     async def async_stop(self) -> None:
         """Stop updater"""
@@ -139,35 +135,6 @@ class IntercomUpdater(DataUpdateCoordinator):
         """
 
         return timedelta(seconds=self._scan_interval)
-
-    async def update(self) -> dict:
-        """Update Intercom information.
-
-        :return dict: dict with Intercom data.
-        """
-
-        if not self._is_first_update:
-            await asyncio.sleep(randint(1, 3) * 60)
-
-        self.code = codes.OK
-
-        _err: IntercomError | None = None
-
-        try:
-            await self._async_prepare(self.data)
-        except IntercomUnauthorizedError as _e:
-            raise ConfigEntryAuthFailed(_e) from _e
-        except IntercomError as _e:
-            _err = _e
-
-            self.code = codes.SERVICE_UNAVAILABLE
-
-        self.data[ATTR_UPDATE_STATE] = codes.is_error(self.code)
-
-        if self._is_first_update:
-            self._is_first_update = False
-
-        return self.data
 
     def update_data(self, field: str, value: Any) -> None:
         """Update data

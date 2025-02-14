@@ -40,6 +40,7 @@ from tests.setup import (
     async_mock_client,
     async_setup,
 )
+from custom_components.tattelecom_intercom.switch import IntercomSwitch
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -242,3 +243,32 @@ def _generate_id(code: str, phone: int) -> str:
         phone,
         code,
     )
+
+
+async def test_switch_state(hass: HomeAssistant, init_integration):
+    """Test switch state."""
+    state = hass.states.get("switch.test_intercom_mute")
+    assert state is not None
+    assert state.state == STATE_OFF
+
+
+async def test_switch_turn_on(hass: HomeAssistant, init_integration):
+    """Test switch turn on."""
+    entity = hass.data[DOMAIN]["entities"]["switch.test_intercom_mute"]
+    mock_client = AsyncMock()
+    
+    with patch.object(entity._updater, "client", mock_client):
+        await entity.async_turn_on()
+        mock_client.mute.assert_called_once()
+        assert entity.state == STATE_ON
+
+
+async def test_switch_turn_off(hass: HomeAssistant, init_integration):
+    """Test switch turn off."""
+    entity = hass.data[DOMAIN]["entities"]["switch.test_intercom_mute"]
+    mock_client = AsyncMock()
+    
+    with patch.object(entity._updater, "client", mock_client):
+        await entity.async_turn_off()
+        mock_client.unmute.assert_called_once()
+        assert entity.state == STATE_OFF

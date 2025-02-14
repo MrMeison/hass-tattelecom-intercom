@@ -14,11 +14,11 @@ from .updater import IntercomUpdater
 _LOGGER = logging.getLogger(__name__)
 
 
-class IntercomEntity(CoordinatorEntity):
+class IntercomEntity(CoordinatorEntity["IntercomUpdater"]):
     """Tattelecom Intercom entity."""
 
     _attr_attribution: str = ATTRIBUTION
-    _attr_id: int = -1
+    _attr_has_entity_name: bool = True
 
     def __init__(
         self,
@@ -35,10 +35,10 @@ class IntercomEntity(CoordinatorEntity):
         :param entity_id_format: str: ENTITY_ID_FORMAT
         """
 
-        CoordinatorEntity.__init__(self, coordinator=updater)
+        super().__init__(coordinator=updater)
 
         self.entity_description = description
-        self._updater: IntercomUpdater = updater
+        self._updater = updater
 
         self.entity_id = generate_entity_id(
             entity_id_format,
@@ -48,7 +48,6 @@ class IntercomEntity(CoordinatorEntity):
 
         self._attr_name = description.name
         self._attr_unique_id = unique_id
-
         self._attr_device_info = updater.device_info
 
     async def async_added_to_hass(self) -> None:
