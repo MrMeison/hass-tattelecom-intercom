@@ -245,7 +245,9 @@ def _generate_id(code: str, phone: int) -> str:
     )
 
 
-async def test_switch_state(hass: HomeAssistant, init_integration):
+async def test_switch_state(
+    hass: HomeAssistant, init_integration: None
+) -> None:
     """Test switch state."""
     state = hass.states.get("switch.test_intercom_mute")
     assert state is not None

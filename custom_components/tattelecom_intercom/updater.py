@@ -1,54 +1,29 @@
-"""Tattelecom Intercom data updater."""
-
-
+"""Tattelecom Intercom updater."""
 from __future__ import annotations
 
-import asyncio
-import contextlib
-import logging
-from dataclasses import dataclass
 from datetime import timedelta
-from functools import cached_property
-from random import randint
-from typing import Any, Final
+import logging
+from typing import Any, Callable, Final
 
-from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
-from homeassistant.exceptions import ConfigEntryAuthFailed, UpdateFailed
-from homeassistant.helpers import event
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.dispatcher import async_dispatcher_send
-from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.httpx_client import create_async_httpx_client
-from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
-from homeassistant.util import utcnow
-from httpx import AsyncHTTPTransport, codes
+from homeassistant.helpers.update_coordinator import (
+    DataUpdateCoordinator,
+    UpdateFailed,
+)
+from httpx import AsyncHTTPTransport
 
-from .client import IntercomClient
 from .const import (
     ATTR_MUTE,
-    ATTR_SIP_ADDRESS,
     ATTR_SIP_LOGIN,
-    ATTR_SIP_PASSWORD,
-    ATTR_SIP_PORT,
     ATTR_STREAM_URL,
-    ATTR_STREAM_URL_MPEG,
-    ATTR_UPDATE_STATE,
-    DEFAULT_RETRY,
-    DEFAULT_SCAN_INTERVAL,
-    DEFAULT_TIMEOUT,
     DOMAIN,
-    MAINTAINER,
     NAME,
-    SIGNAL_CALL_STATE,
     SIGNAL_NEW_INTERCOM,
-    SIP_DEFAULT_RETRY,
-    UPDATER,
 )
-from .exceptions import (
-    IntercomConnectionError,
-    IntercomError,
-    IntercomUnauthorizedError,
-)
-from .voip import Call, IntercomVoip
+
+CALLBACK_TYPE = Callable[[Any], None]
 
 _LOGGER = logging.getLogger(__name__)
 

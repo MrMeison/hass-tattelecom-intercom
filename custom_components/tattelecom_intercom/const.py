@@ -1,4 +1,4 @@
-"""General constants."""
+"""Constants for the Tattelecom Intercom integration."""
 from __future__ import annotations
 
 from typing import Final
@@ -8,7 +8,11 @@ from homeassistant.const import Platform
 
 # fmt: off
 DOMAIN: Final = "tattelecom_intercom"
+"""Integration domain."""
+
 NAME: Final = "Tattelecom Intercom"
+"""Integration name."""
+
 MAINTAINER: Final = "Tattelecom"
 ATTRIBUTION: Final = "Data provided by Tattelecom Intercom"
 
