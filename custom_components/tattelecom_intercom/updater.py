@@ -1,27 +1,47 @@
 """Tattelecom Intercom updater."""
 from __future__ import annotations
 
+import asyncio
+import contextlib
 from datetime import timedelta
 import logging
+from random import randint
+from functools import cached_property
+from dataclasses import dataclass
 from typing import Any, Callable, Final
 
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import event
+from homeassistant.util.dt import utcnow
+from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.httpx_client import create_async_httpx_client
 from homeassistant.helpers.update_coordinator import (
     DataUpdateCoordinator,
     UpdateFailed,
 )
-from httpx import AsyncHTTPTransport
+from httpx import AsyncHTTPTransport, codes
 
 from .const import (
     ATTR_MUTE,
     ATTR_SIP_LOGIN,
     ATTR_STREAM_URL,
+    ATTR_STREAM_URL_MPEG,
+    ATTR_SIP_ADDRESS,
+    ATTR_SIP_PORT,
+    ATTR_SIP_PASSWORD,
+    DEFAULT_SCAN_INTERVAL,
+    DEFAULT_TIMEOUT,
+    SIP_DEFAULT_RETRY,
     DOMAIN,
+    MAINTAINER,
     NAME,
     SIGNAL_NEW_INTERCOM,
+    UPDATER,
 )
+from .exceptions import IntercomConnectionError
+from .client import IntercomClient
+from .voip import IntercomVoip, Call
 
 CALLBACK_TYPE = Callable[[Any], None]
 
@@ -45,6 +65,7 @@ class IntercomUpdater(DataUpdateCoordinator[dict[str, Any]]):
     new_intercom_callbacks: list[CALLBACK_TYPE] = []
 
     _scan_interval: int
+    _is_first_update: bool
 
     def __init__(
         self,
@@ -66,6 +87,7 @@ class IntercomUpdater(DataUpdateCoordinator[dict[str, Any]]):
         self.phone = phone
         self.token = token
         self._scan_interval = scan_interval
+        self._is_first_update = True
         
         _transport = AsyncHTTPTransport(http1=False, http2=True, retries=3)
         self.client = IntercomClient(
@@ -160,6 +182,7 @@ class IntercomUpdater(DataUpdateCoordinator[dict[str, Any]]):
 
         try:
             await self._async_prepare_sip_settings(data)
+            self._is_first_update = False
         except IntercomConnectionError as _err:  # pragma: no cover
             _error = _err
 
@@ -174,7 +197,7 @@ class IntercomUpdater(DataUpdateCoordinator[dict[str, Any]]):
             await self.client.streams()
 
         if _error:  # pragma: no cover
-            if self._is_first_update and retry <= DEFAULT_RETRY:
+            if self._is_first_update and retry <= SIP_DEFAULT_RETRY:
                 await asyncio.sleep(retry)
 
                 _LOGGER.debug("Error start. retry (%r): %r", retry, _error)
