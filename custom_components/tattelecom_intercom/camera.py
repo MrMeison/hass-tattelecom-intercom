@@ -17,8 +17,6 @@ from homeassistant.components.generic.camera import (
     CONF_LIMIT_REFETCH_TO_URL_CHANGE,
     CONF_STREAM_SOURCE,
     CONF_VERIFY_SSL,
-    DEFAULT_CONTENT_TYPE,
-    HTTP_BASIC_AUTHENTICATION,
     GenericCamera,
 )
 from homeassistant.config_entries import ConfigEntry
@@ -154,10 +152,10 @@ class IntercomCamera(IntercomEntity, GenericCamera):
             self.hass,
             {
                 CONF_STREAM_SOURCE: source,
-                CONF_AUTHENTICATION: HTTP_BASIC_AUTHENTICATION,
+                CONF_AUTHENTICATION: True,
                 CONF_LIMIT_REFETCH_TO_URL_CHANGE: False,
                 CONF_NAME: description.name,
-                CONF_CONTENT_TYPE: DEFAULT_CONTENT_TYPE,
+                CONF_CONTENT_TYPE: "video/mpeg",
                 CONF_FRAMERATE: 2,
                 CONF_VERIFY_SSL: False,
             },
