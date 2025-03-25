@@ -1,0 +1,275 @@
+openapi: 3.0.0
+info:
+  title: Tattelecom Intercom API
+  description: API для взаимодействия с домофонной системой Таттелеком
+  version: 2.0.0
+  contact:
+    name: Dmitry Mamontov
+    url: https://github.com/dmamontov/hass-tattelecom-intercom
+
+servers:
+  - url: https://domofon.tattelecom.ru/{apiVersion}
+    variables:
+      apiVersion:
+        enum:
+          - v1
+          - v2
+        default: v1
+
+paths:
+  /subscriber/signin:
+    post:
+      summary: Вход в систему
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                phone:
+                  type: string
+                  description: Номер телефона
+                  example: "79998887766"
+                device_code:
+                  type: string
+                  description: Код устройства
+                  example: "Android_empty_push_token"
+                device_os:
+                  type: integer
+                  description: Тип ОС (1 - Android)
+                  example: 1
+      responses:
+        '200':
+          description: Успешный вход
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+
+  /subscriber/register:
+    post:
+      summary: Регистрация устройства
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                phone:
+                  type: string
+                device_code:
+                  type: string
+                device_os:
+                  type: integer
+                registration_token:
+                  type: string
+      responses:
+        '200':
+          description: Успешная регистрация
+
+  /subscriber/smsconfirm:
+    post:
+      summary: Подтверждение SMS кода
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                phone:
+                  type: string
+                device_code:
+                  type: string
+                sms_code:
+                  type: string
+                  minLength: 6
+                  maxLength: 6
+      responses:
+        '200':
+          description: Код подтвержден
+
+  /subscriber/available-intercoms:
+    get:
+      summary: Получение списка доступных домофонов
+      parameters:
+        - name: device_code
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: phone
+          in: query
+          required: true
+          schema:
+            type: string
+      security:
+        - AccessToken: []
+      responses:
+        '200':
+          description: Список домофонов
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Intercom'
+
+  /subscriber/sipsettings:
+    get:
+      summary: Получение SIP настроек
+      parameters:
+        - name: device_code
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: phone
+          in: query
+          required: true
+          schema:
+            type: string
+      security:
+        - AccessToken: []
+      responses:
+        '200':
+          description: SIP настройки
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SipSettings'
+
+  /subscriber/open-intercom:
+    post:
+      summary: Открыть дверь
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                device_code:
+                  type: string
+                phone:
+                  type: string
+                intercom_id:
+                  type: integer
+      security:
+        - AccessToken: []
+      responses:
+        '200':
+          description: Дверь открыта
+
+  /subscriber/disable-intercom-calls:
+    post:
+      summary: Отключить звонки
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                device_code:
+                  type: string
+                phone:
+                  type: string
+                intercom_id:
+                  type: integer
+      security:
+        - AccessToken: []
+      responses:
+        '200':
+          description: Звонки отключены
+
+  /subscriber/enable-intercom-calls:
+    post:
+      summary: Включить звонки
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                device_code:
+                  type: string
+                phone:
+                  type: string
+                intercom_id:
+                  type: integer
+      security:
+        - AccessToken: []
+      responses:
+        '200':
+          description: Звонки включены
+
+components:
+  schemas:
+    AuthResponse:
+      type: object
+      properties:
+        token:
+          type: string
+        expires:
+          type: integer
+        refresh_token:
+          type: string
+
+    Intercom:
+      type: object
+      properties:
+        id:
+          type: integer
+        address:
+          type: string
+        entrance:
+          type: string
+        is_muted:
+          type: boolean
+        is_online:
+          type: boolean
+        stream_url:
+          type: string
+        stream_url_mpeg:
+          type: string
+
+    SipSettings:
+      type: object
+      properties:
+        sip_address:
+          type: string
+        sip_login:
+          type: string
+        sip_password:
+          type: string
+        sip_port:
+          type: integer
+          example: 60266
+
+  securitySchemes:
+    AccessToken:
+      type: apiKey
+      in: header
+      name: access-token
+
+  headers:
+    Accept:
+      schema:
+        type: string
+        default: application/json
+    Accept-Charset:
+      schema:
+        type: string
+        default: UTF-8
+    User-Agent:
+      schema:
+        type: string
+        default: Ktor client
+    Accept-Encoding:
+      schema:
+        type: string
+        default: gzip 
