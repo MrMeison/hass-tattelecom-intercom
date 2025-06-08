@@ -14,7 +14,6 @@ from homeassistant.helpers.typing import ConfigType
 
 from .client import IntercomClient
 from .const import (
-    CONF_LOGIN,
     CONF_PHONE,
     CONF_SMS_CODE,
     DEFAULT_SCAN_INTERVAL,
@@ -33,7 +32,6 @@ from .exceptions import (
     IntercomUnauthorizedError,
 )
 from .helper import get_config_value
-
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -65,7 +63,7 @@ class IntercomFlow(FlowHandler):
             try:
                 await self._client.signin()
             except IntercomNotFoundError:
-                return await self.async_step_register(user_input)
+                return await self.async_step_confirm(user_input)
             except IntercomConnectionError:
                 errors = {"base": "connection.error"}
             except IntercomError as err:
@@ -88,48 +86,6 @@ class IntercomFlow(FlowHandler):
                     ): vol.All(
                         vol.Coerce(int), vol.Range(min=PHONE_MIN, max=PHONE_MAX)
                     ),
-                }
-            ),
-            errors=errors,
-        )
-
-    async def async_step_register(
-        self, user_input: ConfigType, errors: dict | None = None
-    ) -> FlowResult:
-        """Handle a flow register.
-
-        :param user_input: ConfigType: User data
-        :param errors: dict | None: Errors list
-        :return FlowResult: Result object
-        """
-
-        if user_input.get(CONF_LOGIN):
-            self._entry_data |= user_input
-
-            try:
-                await self._client.register(user_input.get(CONF_LOGIN))  # type: ignore
-            except IntercomUnauthorizedError:
-                return await self.async_step_phone({}, {"base": "unauthorized.error"})
-            except IntercomConnectionError:
-                errors = {"base": "connection.error"}
-            except IntercomError as err:
-                errors = {"base": str(err)}
-            else:
-                return await self.async_step_confirm(user_input)
-
-        return self.async_show_form(
-            step_id="register",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(
-                        CONF_LOGIN,
-                        default=user_input.get(
-                            CONF_LOGIN,
-                            get_config_value(
-                                self._config_entry, CONF_LOGIN, vol.UNDEFINED
-                            ),
-                        ),
-                    ): str,
                 }
             ),
             errors=errors,

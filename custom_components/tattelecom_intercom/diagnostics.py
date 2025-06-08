@@ -9,12 +9,11 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_TOKEN
 from homeassistant.core import HomeAssistant
 
-from .const import CONF_LOGIN, CONF_PHONE, CONF_SMS_CODE
+from .const import CONF_PHONE, CONF_SMS_CODE
 from .updater import async_get_updater
 
 TO_REDACT: Final = {
     CONF_PHONE,
-    CONF_LOGIN,
     CONF_SMS_CODE,
     CONF_TOKEN,
     "sip_login",

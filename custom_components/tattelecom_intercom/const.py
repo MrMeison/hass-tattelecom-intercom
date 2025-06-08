@@ -40,7 +40,6 @@ SIGNAL_SIP_STATE: Final = f"{DOMAIN}-sip-state"
 SIGNAL_CALL_STATE: Final = f"{DOMAIN}-call-state"
 
 CONF_PHONE: Final = "phone"
-CONF_LOGIN: Final = "login"
 CONF_SMS_CODE: Final = "sms_code"
 
 PHONE_MIN: Final = 70000000000
@@ -60,7 +59,7 @@ CLIENT_URL: Final = "https://domofon.tattelecom.ru/{api_version}/{path}"
 HEADERS: Final = {
     ACCEPT: "application/json",
     ACCEPT_CHARSET: "UTF-8",
-    USER_AGENT: "Ktor client",
+    USER_AGENT: "ktor-client",
     ACCEPT_ENCODING: "gzip",
 }
 DEVICE_CODE: Final = "Android_empty_push_token"

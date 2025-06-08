@@ -103,7 +103,7 @@ class IntercomUpdater(DataUpdateCoordinator[dict[str, Any]]):
         self.last_call: Call | None = None
         self.code = codes.BAD_GATEWAY
         self.new_intercom_callbacks: list[CALLBACK_TYPE] = []
-        self.intercoms: dict[int, IntercomEntityDescription] = {}
+        self.gates: dict[int, IntercomEntityDescription] = {}
         self.code_map: dict[str, int] = {}
 
     async def _async_update_data(self) -> dict[str, Any]:
@@ -214,32 +214,29 @@ class IntercomUpdater(DataUpdateCoordinator[dict[str, Any]]):
 
         response: dict = await self.client.intercoms()
 
-        if "addresses" in response:
-            for address, intercoms in response["addresses"].items():
-                for intercom in intercoms:
+        if "gates" in response:
+            for gates in response["gates"]:
+                for gate in gates:
                     if (
-                        ATTR_STREAM_URL in intercom and ATTR_STREAM_URL_MPEG in intercom
+                        ATTR_STREAM_URL in gate and ATTR_STREAM_URL_MPEG in gate
                     ):  # pragma: no cover
-                        intercom[ATTR_STREAM_URL] = intercom[ATTR_STREAM_URL_MPEG]
+                        gate[ATTR_STREAM_URL] = gate[ATTR_STREAM_URL_MPEG]
 
                     for attr in [ATTR_STREAM_URL, ATTR_MUTE, ATTR_SIP_LOGIN]:
-                        data[f"{intercom['id']}_{attr}"] = intercom[attr]
+                        data[f"{gate['id']}_{attr}"] = gate[attr]
 
-                    if intercom["id"] in self.intercoms:
+                    if gate["gate_id"] in self.gates:
                         continue
 
-                    self.code_map[intercom["sip_login"]] = intercom["id"]
+                    self.code_map[gate["sip_login"]] = gate["gate_id"]
 
-                    self.intercoms[intercom["id"]] = IntercomEntityDescription(
-                        id=intercom["id"],
+                    self.gates[gate["gate_id"]] = IntercomEntityDescription(
+                        id=gate["gate_id"],
                         device_info=DeviceInfo(
-                            identifiers={(DOMAIN, str(intercom["id"]))},
+                            identifiers={(DOMAIN, str(gate["gate_id"]))},
                             name=" ".join(
                                 [
-                                    address,
-                                    intercom.get(
-                                        "gate_name", intercom.get("intercom_name", "")
-                                    ),
+                                    gate.get("gate_name"),
                                 ]
                             ).strip(),
                             manufacturer=MAINTAINER,
@@ -250,7 +247,7 @@ class IntercomUpdater(DataUpdateCoordinator[dict[str, Any]]):
                         async_dispatcher_send(
                             self.hass,
                             SIGNAL_NEW_INTERCOM,
-                            self.intercoms[intercom["id"]],
+                            self.gates[gate["gate_id"]],
                         )
 
     async def _async_prepare_sip_settings(self, data: dict) -> None:

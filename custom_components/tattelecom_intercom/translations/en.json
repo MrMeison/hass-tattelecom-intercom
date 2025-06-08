@@ -1,71 +1,69 @@
 {
-  "title": "Tattelecom Intercom",
-  "config": {
-    "error": {
-      "unauthorized.error": "An authorization error has occurred. Most likely, you are authorized on another resource.",
-      "connection.error": "A network error has occurred. Try later.",
-      "single_instance_allowed": "Already configured. Only a single configuration possible."
+    "config": {
+        "error": {
+            "connection.error": "A network error has occurred. Try later.",
+            "unauthorized.error": "An authorization error has occurred. Most likely, you are authorized on another resource."
+        },
+        "step": {
+            "confirm": {
+                "data": {
+                    "sms_code": "SMS code"
+                },
+                "description": "Enter the code sent to you by SMS.",
+                "title": "Tattelecom Intercom settings"
+            },
+            "phone": {
+                "data": {
+                    "phone": "Phone number"
+                },
+                "description": "Enter a phone number starting with 7.",
+                "title": "Tattelecom Intercom settings"
+            },
+            "register": {
+                "data": {
+                    "login": "Login"
+                },
+                "description": "Enter login.",
+                "title": "Tattelecom Intercom settings"
+            }
+        }
     },
-    "step": {
-      "phone": {
-        "title": "Tattelecom Intercom settings",
-        "description": "Enter a phone number starting with 7.",
-        "data": {
-          "phone": "Phone number"
+    "options": {
+        "error": {
+            "connection.error": "A network error has occurred. Try later.",
+            "unauthorized.error": "An authorization error has occurred. Most likely, you are authorized on another resource."
+        },
+        "step": {
+            "confirm": {
+                "data": {
+                    "sms_code": "SMS code"
+                },
+                "description": "Enter the code sent to you by SMS.",
+                "title": "Tattelecom Intercom settings"
+            },
+            "phone": {
+                "data": {
+                    "phone": "Phone number",
+                    "scan_interval": "Scan interval in seconds [PRO]",
+                    "timeout": "Timeout of requests in seconds [PRO]"
+                },
+                "description": "If you change your phone number, authorization will start from the very beginning.",
+                "title": "Tattelecom Intercom settings"
+            },
+            "register": {
+                "data": {
+                    "login": "Login"
+                },
+                "description": "Enter login.",
+                "title": "Tattelecom Intercom settings"
+            }
         }
-      },
-      "register": {
-        "title": "Tattelecom Intercom settings",
-        "description": "Enter login.",
-        "data": {
-          "login": "Login"
-        }
-      },
-      "confirm": {
-        "title": "Tattelecom Intercom settings",
-        "description": "Enter the code sent to you by SMS.",
-        "data": {
-          "sms_code": "SMS code"
-        }
-      }
-    }
-  },
-  "options": {
-    "error": {
-      "unauthorized.error": "An authorization error has occurred. Most likely, you are authorized on another resource.",
-      "connection.error": "There is no connection. Check if the data is correct."
     },
-    "step": {
-      "phone": {
-        "title": "Tattelecom Intercom settings",
-        "description": "If you change your phone number, authorization will start from the very beginning.",
-        "data": {
-          "phone": "Phone number",
-          "scan_interval": "Scan interval in seconds [PRO]",
-          "timeout": "Timeout of requests in seconds [PRO]"
+    "system_health": {
+        "info": {
+            "sip_state": "SIP state",
+            "update_state": "Update state",
+            "version": "Version"
         }
-      },
-      "register": {
-        "title": "Tattelecom Intercom settings",
-        "description": "Enter login.",
-        "data": {
-          "login": "Login"
-        }
-      },
-      "confirm": {
-        "title": "Tattelecom Intercom settings",
-        "description": "Enter the code sent to you by SMS.",
-        "data": {
-          "sms_code": "SMS code"
-        }
-      }
     }
-  },
-  "system_health": {
-    "info": {
-      "version": "Version",
-      "update_state": "Update state",
-      "sip_state": "SIP state"
-    }
-  }
 }

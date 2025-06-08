@@ -13,7 +13,6 @@ from .const import (
     CLIENT_URL,
     DEFAULT_TIMEOUT,
     DEVICE_CODE,
-    DEVICE_OS,
     DIAGNOSTIC_CONTENT,
     DIAGNOSTIC_DATE_TIME,
     DIAGNOSTIC_MESSAGE,
@@ -135,31 +134,13 @@ class IntercomClient:
         """
 
         return await self.request(
-            "subscriber/signin",
+            "auth",
             Method.POST,
             {
                 "device_code": DEVICE_CODE,
-                "device_os": DEVICE_OS,
                 "phone": str(self._phone),
             },
-        )
-
-    async def register(self, login: str) -> dict:
-        """Register
-
-        :param login: str: Login
-        :return dict: Response data
-        """
-
-        return await self.request(
-            "subscriber/register",
-            Method.POST,
-            {
-                "device_code": DEVICE_CODE,
-                "device_os": DEVICE_OS,
-                "phone": str(self._phone),
-                "registration_token": login,
-            },
+            api_version=ApiVersion.V2
         )
 
     async def sms_confirm(self, code: str) -> dict:
@@ -170,28 +151,10 @@ class IntercomClient:
         """
 
         return await self.request(
-            "subscriber/smsconfirm",
+            "auth/confirm-sms",
             Method.POST,
-            {"device_code": DEVICE_CODE, "phone": str(self._phone), "sms_code": code},
-        )
-
-    async def update_push_token(self, token: str) -> dict:
-        """Update push token
-
-        :param token: str: Api token
-        :return dict: Response data
-        """
-
-        self._token = token
-
-        return await self.request(
-            "subscriber/update-push-token",
-            Method.POST,
-            {
-                "device_code": DEVICE_CODE,
-                "phone": str(self._phone),
-                "push_token": DEVICE_CODE,
-            },
+            {"device_code": DEVICE_CODE, "phone": str(self._phone), "sms_code": code, device_os_id: DEVICE_OS},
+            api_version=ApiVersion.V2,
         )
 
     async def sip_settings(self) -> dict:
@@ -215,11 +178,8 @@ class IntercomClient:
         """
 
         return await self.request(
-            "subscriber/available-intercoms",
-            params={
-                "device_code": DEVICE_CODE,
-                "phone": str(self._phone),
-            },
+            "subscriber/gates",
+            api_version=ApiVersion.V2,
         )
 
     # TODO: Not yet supported by the manufacturer.
@@ -246,12 +206,13 @@ class IntercomClient:
         """
 
         return await self.request(
-            "subscriber/open-intercom",
+            "gate/open-door",
             Method.POST,
             {
-                "device_code": DEVICE_CODE,
-                "phone": str(self._phone),
-                "intercom_id": intercom_id,
+                "gate_id": intercom_id,
+                "data": {
+                    "screen_id": 1
+                }
             },
         )
 

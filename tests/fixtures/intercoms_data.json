@@ -1,65 +1,72 @@
 {
-    "addresses": {
-        "Testovaya street 1": [
-            {
-                "ble_active": true,
-                "ble_major": "",
-                "ble_minor": "",
-                "ble_rssi": null,
-                "ble_uuid": "",
-                "building_address": "Testovaya street 1",
-                "building_id": 1000,
-                "gate_name": "Entrance №2 Door №1",
-                "id": 1,
-                "intercom_name": "Entrance №2 Door №1",
-                "mute": false,
-                "schedules": [],
-                "sip_login": "G0001",
-                "stream_url": "https://test.com/intercom_1/index.m3u8?token=2.0000000000"
-            },
-            {
-                "ble_active": true,
-                "ble_major": "",
-                "ble_minor": "",
-                "ble_rssi": null,
-                "ble_uuid": "",
-                "building_address": "Testovaya street 1",
-                "building_id": 1000,
-                "gate_name": "Entrance №2 Door №2",
-                "id": 2,
-                "intercom_name": "Entrance №2 Door №2",
-                "mute": false,
-                "schedules": [],
-                "sip_login": "G0002",
-                "stream_url": "https://test.com/intercom_2/index.m3u8?token=2.0000000000"
-            },
-            {
-                "ble_active": true,
-                "ble_major": "",
-                "ble_minor": "",
-                "ble_rssi": null,
-                "ble_uuid": "",
-                "building_address": "Testovaya street 1",
-                "building_id": 1000,
-                "gate_name": "Entrance №2 Door №3",
-                "id": 3,
-                "intercom_name": "Entrance №2 Door №3",
-                "mute": false,
-                "schedules": [],
-                "sip_login": "G0003",
-                "stream_url": "https://test.com/intercom_3/index.m3u8?token=2.0000000000"
-            }
-        ]
-    },
-    "apartments": [
-        {
-            "address": "Testovaya street 1 Apartment №52",
-            "building_id": 1000,
-            "guests": [],
-            "id": 1,
-            "remaining_invites": 0
-        }
-    ],
-    "mute": false,
-    "success": true
+	"success": true,
+	"mute": false,
+	"apartments": [{
+		"id": 1,
+		"name": "кв 1",
+		"sip_login": "G0002",
+		"door_code": null,
+		"door_code_updated_at": null,
+		"hallway_id": 1,
+		"services": [{
+			"id": 7,
+			"name": "intercom-temp-code",
+			"active": false
+		}, {
+			"id": 8,
+			"name": "event_download",
+			"active": false
+		}, {
+			"id": 9,
+			"name": "key-log-history",
+			"active": false
+		}, {
+			"id": 5,
+			"name": "intercom-archive-2d",
+			"active": false
+		}, {
+			"id": 6,
+			"name": "intercom-archive-7d",
+			"active": false
+		}, {
+			"id": 2,
+			"name": "intercom-preview-button",
+			"active": false
+		}, {
+			"id": 4,
+			"name": "intercom-calls",
+			"active": false
+		}, {
+			"id": 3,
+			"name": "intercom-video-download",
+			"active": false
+		}, {
+			"id": 1,
+			"name": "intercom-call-delete",
+			"active": false
+		}]
+	}],
+	"gates": [{
+		"gate_id": 1,
+		"gate_name": "Подъезд №1",
+		"gate_type_id": 1,
+		"sip_login": "G0002",
+		"is_favorite": false,
+		"keyreader_id": null,
+		"intercom_id": 1,
+		"door_code": 1,
+		"door_code_updated_at": 1748931217,
+		"mute": false,
+		"stream_url": "https://streamer.tattelecom.ru/intercom_1/index.m3u8",
+		"stream_url_mpeg": "https://streamer.tattelecom.ru/intercom_1/mpegts",
+		"buildings": [{
+			"building_id": 1,
+			"building_address": "ул. Тестовая, д. 1"
+		}],
+		"hallways": [{
+			"hallway_id": 1,
+			"hallway_name": "Подъезд №1",
+			"is_exit": false
+		}]
+	}]
 }
