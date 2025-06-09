@@ -17,6 +17,7 @@ from .const import (
     DIAGNOSTIC_DATE_TIME,
     DIAGNOSTIC_MESSAGE,
     HEADERS,
+    DEVICE_OS,
 )
 from .enum import ApiVersion, Method
 from .exceptions import (
@@ -140,7 +141,7 @@ class IntercomClient:
                 "device_code": DEVICE_CODE,
                 "phone": str(self._phone),
             },
-            api_version=ApiVersion.V2
+            api_version=ApiVersion.V2,
         )
 
     async def sms_confirm(self, code: str) -> dict:
@@ -153,7 +154,12 @@ class IntercomClient:
         return await self.request(
             "auth/confirm-sms",
             Method.POST,
-            {"device_code": DEVICE_CODE, "phone": str(self._phone), "sms_code": code, device_os_id: DEVICE_OS},
+            {
+                "device_code": DEVICE_CODE,
+                "phone": str(self._phone),
+                "sms_code": code,
+                "device_os_id": DEVICE_OS,
+            },
             api_version=ApiVersion.V2,
         )
 
@@ -208,12 +214,8 @@ class IntercomClient:
         return await self.request(
             "gate/open-door",
             Method.POST,
-            {
-                "gate_id": intercom_id,
-                "data": {
-                    "screen_id": 1
-                }
-            },
+            {"gate_id": intercom_id, "data": {"screen_id": 1}},
+            api_version=ApiVersion.V2
         )
 
     async def mute(self, intercom_id: int) -> dict:

@@ -32,6 +32,7 @@ from .exceptions import (
     IntercomUnauthorizedError,
 )
 from .helper import get_config_value
+
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -108,8 +109,6 @@ class IntercomFlow(FlowHandler):
                 result: dict = await self._client.sms_confirm(  # type: ignore
                     user_input.get(CONF_SMS_CODE)
                 )
-
-                await self._client.update_push_token(result["access_token"])  # type: ignore
             except IntercomUnauthorizedError:
                 return await self.async_step_phone({}, {"base": "unauthorized.error"})
             except IntercomConnectionError:

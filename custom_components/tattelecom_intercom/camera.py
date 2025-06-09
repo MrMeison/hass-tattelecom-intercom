@@ -178,7 +178,11 @@ class IntercomCamera(IntercomEntity, GenericCamera):
         :return bool: Is available
         """
 
-        return self.coordinator.last_update_success and len(self._attr_stream_url) > 0
+        return (
+            self.coordinator.last_update_success
+            and self._attr_stream_url
+            and len(self._attr_stream_url) > 0
+        )
 
     async def async_added_to_hass(self) -> None:
         """When entity is added to hass."""

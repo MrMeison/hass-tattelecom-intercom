@@ -1,4 +1,5 @@
 """Tattelecom Intercom updater."""
+
 from __future__ import annotations
 
 import asyncio
@@ -8,7 +9,7 @@ import logging
 from random import randint
 from functools import cached_property
 from dataclasses import dataclass
-from typing import Any, Callable, Final
+from typing import Any, Callable
 
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import event
@@ -37,6 +38,7 @@ from .const import (
     MAINTAINER,
     NAME,
     SIGNAL_NEW_INTERCOM,
+    SIGNAL_CALL_STATE,
     UPDATER,
 )
 from .exceptions import IntercomConnectionError
@@ -76,7 +78,7 @@ class IntercomUpdater(DataUpdateCoordinator[dict[str, Any]]):
         timeout: int = DEFAULT_TIMEOUT,
     ) -> None:
         """Initialize updater."""
-        
+
         super().__init__(
             hass,
             _LOGGER,
@@ -88,7 +90,7 @@ class IntercomUpdater(DataUpdateCoordinator[dict[str, Any]]):
         self.token = token
         self._scan_interval = scan_interval
         self._is_first_update = True
-        
+
         _transport = AsyncHTTPTransport(http1=False, http2=True, retries=3)
         self.client = IntercomClient(
             create_async_httpx_client(
@@ -103,7 +105,7 @@ class IntercomUpdater(DataUpdateCoordinator[dict[str, Any]]):
         self.last_call: Call | None = None
         self.code = codes.BAD_GATEWAY
         self.new_intercom_callbacks: list[CALLBACK_TYPE] = []
-        self.gates: dict[int, IntercomEntityDescription] = {}
+        self.intercoms: dict[int, IntercomEntityDescription] = {}
         self.code_map: dict[str, int] = {}
 
     async def _async_update_data(self) -> dict[str, Any]:
@@ -215,40 +217,41 @@ class IntercomUpdater(DataUpdateCoordinator[dict[str, Any]]):
         response: dict = await self.client.intercoms()
 
         if "gates" in response:
-            for gates in response["gates"]:
-                for gate in gates:
-                    if (
-                        ATTR_STREAM_URL in gate and ATTR_STREAM_URL_MPEG in gate
-                    ):  # pragma: no cover
-                        gate[ATTR_STREAM_URL] = gate[ATTR_STREAM_URL_MPEG]
+            for gate in response["gates"]:
+                if (
+                    ATTR_STREAM_URL in gate and ATTR_STREAM_URL_MPEG in gate
+                ):  # pragma: no cover
+                    gate[ATTR_STREAM_URL] = gate[ATTR_STREAM_URL_MPEG]
 
-                    for attr in [ATTR_STREAM_URL, ATTR_MUTE, ATTR_SIP_LOGIN]:
-                        data[f"{gate['id']}_{attr}"] = gate[attr]
+                for attr in [ATTR_STREAM_URL, ATTR_MUTE, ATTR_SIP_LOGIN]:
+                    data[f"{gate['gate_id']}_{attr}"] = gate[attr]
 
-                    if gate["gate_id"] in self.gates:
-                        continue
+                if gate["gate_id"] in self.intercoms:
+                    continue
 
-                    self.code_map[gate["sip_login"]] = gate["gate_id"]
+                self.code_map[gate["sip_login"]] = gate["gate_id"]
 
-                    self.gates[gate["gate_id"]] = IntercomEntityDescription(
-                        id=gate["gate_id"],
-                        device_info=DeviceInfo(
-                            identifiers={(DOMAIN, str(gate["gate_id"]))},
-                            name=" ".join(
-                                [
-                                    gate.get("gate_name"),
-                                ]
-                            ).strip(),
-                            manufacturer=MAINTAINER,
-                        ),
+                self.intercoms[gate["gate_id"]] = IntercomEntityDescription(
+                    id=gate["gate_id"],
+                    key=gate["gate_id"],
+                    name=f"intercom_{gate['gate_id']}",
+                    device_info=DeviceInfo(
+                        identifiers={(DOMAIN, str(gate["gate_id"]))},
+                        name=" ".join(
+                            [
+                                gate.get("gate_name"),
+                            ]
+                        ).strip(),
+                        manufacturer=MAINTAINER,
+                    ),
+                )
+
+                if self.new_intercom_callbacks:
+                    async_dispatcher_send(
+                        self.hass,
+                        SIGNAL_NEW_INTERCOM,
+                        self.intercoms[gate["gate_id"]],
                     )
-
-                    if self.new_intercom_callbacks:
-                        async_dispatcher_send(
-                            self.hass,
-                            SIGNAL_NEW_INTERCOM,
-                            self.gates[gate["gate_id"]],
-                        )
 
     async def _async_prepare_sip_settings(self, data: dict) -> None:
         """Prepare sip_settings.
@@ -308,6 +311,8 @@ class IntercomEntityDescription:
 
     # pylint: disable=invalid-name
     id: int
+    key: int
+    name: str
     device_info: DeviceInfo
 
 
