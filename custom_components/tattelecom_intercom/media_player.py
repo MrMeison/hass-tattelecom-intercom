@@ -19,10 +19,8 @@ from homeassistant.components.media_player import (
     MediaPlayerDeviceClass,
     MediaPlayerEntity,
     MediaPlayerEntityDescription,
-)
-from homeassistant.components.media_player.const import (
-    MEDIA_TYPE_MUSIC,
-    SUPPORT_PLAY_MEDIA,
+    MediaPlayerEntityFeature,
+    MediaType,
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import STATE_IDLE, STATE_PLAYING
@@ -83,7 +81,7 @@ class IntercomMediaPlayer(IntercomEntity, MediaPlayerEntity):
     """Intercom media player entry."""
 
     _unsub_update: CALLBACK_TYPE
-    _attr_supported_features: int = SUPPORT_PLAY_MEDIA
+    _attr_supported_features: int = MediaPlayerEntityFeature.PLAY_MEDIA
     _attr_is_volume_muted: bool = False
     _play_lock: Lock
 
@@ -172,11 +170,11 @@ class IntercomMediaPlayer(IntercomEntity, MediaPlayerEntity):
         :param kwargs: Any
         """
 
-        if media_type != MEDIA_TYPE_MUSIC:  # pragma: no cover
+        if media_type != MediaType.MUSIC:  # pragma: no cover
             _LOGGER.error(
                 "Invalid media type %s. Only %s is supported",
                 media_type,
-                MEDIA_TYPE_MUSIC,
+                MediaType.MUSIC,
             )
 
             return
