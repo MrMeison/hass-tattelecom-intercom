@@ -90,16 +90,7 @@ class IntercomUpdater(DataUpdateCoordinator[dict[str, Any]]):
         self.token = token
         self._scan_interval = scan_interval
         self._is_first_update = True
-
-        _transport = AsyncHTTPTransport(http1=False, http2=True, retries=3)
-        self.client = IntercomClient(
-            create_async_httpx_client(
-                hass, True, http1=False, http2=True, transport=_transport
-            ),
-            phone,
-            token,
-            timeout,
-        )
+        self._timeout = timeout
 
         self.voip: IntercomVoip | None = None
         self.last_call: Call | None = None
@@ -107,6 +98,21 @@ class IntercomUpdater(DataUpdateCoordinator[dict[str, Any]]):
         self.new_intercom_callbacks: list[CALLBACK_TYPE] = []
         self.intercoms: dict[int, IntercomEntityDescription] = {}
         self.code_map: dict[str, int] = {}
+
+    async def async_init(self) -> None:
+        """Initialize HTTP client asynchronously to avoid blocking the event loop."""
+
+        _transport = await self.hass.async_add_executor_job(
+            lambda: AsyncHTTPTransport(http1=False, http2=True, retries=3)
+        )
+        self.client = IntercomClient(
+            create_async_httpx_client(
+                self.hass, True, http1=False, http2=True, transport=_transport
+            ),
+            self.phone,
+            self.token,
+            self._timeout,
+        )
 
     async def _async_update_data(self) -> dict[str, Any]:
         """Update data."""

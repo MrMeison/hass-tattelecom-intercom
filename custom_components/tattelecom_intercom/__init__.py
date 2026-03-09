@@ -53,6 +53,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         get_config_value(entry, CONF_TIMEOUT, DEFAULT_TIMEOUT),
     )
 
+    await _updater.async_init()
+
     hass.data.setdefault(DOMAIN, {})
 
     hass.data[DOMAIN][entry.entry_id] = {UPDATER: _updater}
