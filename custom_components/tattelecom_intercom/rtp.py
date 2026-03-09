@@ -133,10 +133,8 @@ class RtpClient:
 
         self._out = self._in
 
-        self._receiver_loop = asyncio.ensure_future(self._recv(), loop=self.hass.loop)
-        self._transmitter_loop = asyncio.ensure_future(
-            self._trans(), loop=self.hass.loop
-        )
+        self._receiver_loop = self.hass.async_create_task(self._recv())
+        self._transmitter_loop = self.hass.async_create_task(self._trans())
 
     async def stop(self) -> None:
         """Stop client"""

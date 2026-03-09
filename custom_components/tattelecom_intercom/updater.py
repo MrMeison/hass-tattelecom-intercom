@@ -119,7 +119,10 @@ class IntercomUpdater(DataUpdateCoordinator[dict[str, Any]]):
         """Update data."""
         try:
             data: dict = {}
-            await self._async_prepare_intercoms(data)
+            if self._is_first_update:
+                await self._async_prepare(data)
+            else:
+                await self._async_prepare_intercoms(data)
             return data
         except Exception as exc:
             raise UpdateFailed(f"Error communicating with API: {exc}") from exc
@@ -295,10 +298,8 @@ class IntercomUpdater(DataUpdateCoordinator[dict[str, Any]]):
                 self._call_callback,
             )
 
-            self.hass.loop.call_soon(
-                lambda: self.hass.async_create_task(
-                    self.voip.safe_start(SIP_DEFAULT_RETRY)
-                )
+            self.hass.async_create_task(
+                self.voip.safe_start(SIP_DEFAULT_RETRY)
             )
 
     async def _call_callback(self, call: Call) -> None:  # pragma: no cover

@@ -11,12 +11,12 @@
     "http"
   ],
   "documentation": "https://github.com/dmamontov/hass-tattelecom-intercom/wiki",
-  "homeassistant": "2025.2.0",
+  "homeassistant": "2026.2.0",
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/dmamontov/hass-tattelecom-intercom/issues",
   "quality_scale": "platinum",
   "requirements": [
     "httpx[http2]"
   ],
-  "version": "2.0.0"
+  "version": "2.1.0"
 }

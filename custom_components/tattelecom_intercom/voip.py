@@ -16,6 +16,7 @@ from typing import Any
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.dispatcher import async_dispatcher_send
+from homeassistant.helpers.event import async_call_later
 from homeassistant.util.read_only_dict import ReadOnlyDict
 
 from .const import (
@@ -163,9 +164,7 @@ class IntercomVoip:
 
                 return
 
-            self.hass.loop.call_soon(  # pragma: no cover
-                lambda: self.hass.async_create_task(self._call_callback(call)),
-            )
+            self.hass.async_create_task(self._call_callback(call))  # pragma: no cover
 
     async def _callback_bye_or_cancel(self, message: Message) -> Call | None:
         """Voip bye or cancel callback
@@ -223,9 +222,9 @@ class IntercomVoip:
             self, CallState.RINGING, message, self.session_id, self._local_ip
         )
 
-        self.hass.loop.call_later(
-            VOIP_CLEAN_DELAY,
-            lambda: self.hass.async_create_task(self.clean_call(call_id)),
+        async_call_later(
+            self.hass, VOIP_CLEAN_DELAY,
+            lambda _: self.hass.async_create_task(self.clean_call(call_id)),
         )
 
         return self.calls[call_id]
@@ -320,9 +319,7 @@ class IntercomVoip:
         async_dispatcher_send(self.hass, SIGNAL_SIP_STATE)
 
         if register:  # pragma: no cover
-            self.hass.loop.call_soon(
-                lambda: self.hass.async_create_task(self.safe_start(SIP_DEFAULT_RETRY))
-            )
+            self.hass.async_create_task(self.safe_start(SIP_DEFAULT_RETRY))
 
     def debug(  # pylint: disable=too-many-arguments
         self,
@@ -638,9 +635,9 @@ class Call:
 
         await self._phone.sip.answer(self._message, self.session_id, self._ms)
 
-        self._phone.hass.loop.call_later(
-            2,
-            lambda: self._phone.hass.async_create_task(self._re_answer()),
+        async_call_later(
+            self._phone.hass, 2,
+            lambda _: self._phone.hass.async_create_task(self._re_answer()),
         )
 
         return True

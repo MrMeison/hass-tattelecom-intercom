@@ -19,6 +19,7 @@ from functools import cached_property
 from typing import Any
 
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.event import async_call_later
 from homeassistant.util.read_only_dict import ReadOnlyDict
 
 from .const import (
@@ -194,8 +195,8 @@ class IntercomSip:
 
             raise IntercomError(str(_err)) from _err
 
-        self.recv_loop = asyncio.ensure_future(self._recv(), loop=self.hass.loop)
-        self.ping_loop = asyncio.ensure_future(self._ping(), loop=self.hass.loop)
+        self.recv_loop = self.hass.async_create_task(self._recv())
+        self.ping_loop = self.hass.async_create_task(self._ping())
 
     async def stop(self, force: bool = False, safe: bool = False) -> None:
         """Stop voip sip
@@ -352,9 +353,9 @@ class IntercomSip:
 
             self._status_callback(VoipState.FAILED)
 
-            self.register_loop = self.hass.loop.call_later(
-                SIP_RETRY_SLEEP,
-                lambda: self.hass.async_create_task(self._safe_register()),
+            self.register_loop = async_call_later(
+                self.hass, SIP_RETRY_SLEEP,
+                lambda _: self.hass.async_create_task(self._safe_register()),
             )
 
     async def _register(self) -> None:
@@ -413,9 +414,9 @@ class IntercomSip:
             )
 
         if self._started:
-            self.register_loop = self.hass.loop.call_later(
-                SIP_EXPIRES - 10,
-                lambda: self.hass.async_create_task(self._safe_register()),
+            self.register_loop = async_call_later(
+                self.hass, SIP_EXPIRES - 10,
+                lambda _: self.hass.async_create_task(self._safe_register()),
             )
 
     async def _deregister(self) -> None:
