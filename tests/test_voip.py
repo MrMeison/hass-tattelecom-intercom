@@ -25,6 +25,7 @@ from custom_components.tattelecom_intercom.enum import (
     SendMode,
 )
 from custom_components.tattelecom_intercom.exceptions import IntercomError
+from custom_components.tattelecom_intercom.sip import _SipState
 from custom_components.tattelecom_intercom.voip import Call, IntercomVoip
 from tests.setup import (
     MOCK_ADDRESS,
@@ -1780,7 +1781,7 @@ async def test_invite_cancel(hass: HomeAssistant) -> None:
         assert await voip.start()
         voip.sip.ping_loop.cancel()  # type: ignore
 
-        while voip.sip._started:
+        while voip.sip._state in (_SipState.STARTING, _SipState.RUNNING):
             await asyncio.sleep(1)
             async_fire_time_changed(hass, utcnow() + timedelta(seconds=1))
 
@@ -1908,7 +1909,7 @@ async def test_invite_bye(hass: HomeAssistant) -> None:
         assert await voip.start()
         voip.sip.ping_loop.cancel()  # type: ignore
 
-        while voip.sip._started:
+        while voip.sip._state in (_SipState.STARTING, _SipState.RUNNING):
             await asyncio.sleep(1)
             async_fire_time_changed(hass, utcnow() + timedelta(seconds=1))
 
@@ -2028,7 +2029,7 @@ async def test_invite_decline(hass: HomeAssistant) -> None:
         assert await voip.start()
         voip.sip.ping_loop.cancel()  # type: ignore
 
-        while voip.sip._started:
+        while voip.sip._state in (_SipState.STARTING, _SipState.RUNNING):
             await asyncio.sleep(1)
             async_fire_time_changed(hass, utcnow() + timedelta(seconds=1))
 
@@ -2249,7 +2250,7 @@ async def test_renegotiate(hass: HomeAssistant) -> None:
 
         assert await voip.start()
 
-        while voip.sip._started:
+        while voip.sip._state in (_SipState.STARTING, _SipState.RUNNING):
             await asyncio.sleep(1)
             async_fire_time_changed(hass, utcnow() + timedelta(seconds=1))
 
@@ -2404,7 +2405,7 @@ async def test_answer(hass: HomeAssistant) -> None:
         assert await voip.start()
         voip.sip.ping_loop.cancel()  # type: ignore
 
-        while voip.sip._started:
+        while voip.sip._state in (_SipState.STARTING, _SipState.RUNNING):
             await asyncio.sleep(1)
             async_fire_time_changed(hass, utcnow() + timedelta(seconds=1))
 
@@ -2569,7 +2570,7 @@ async def test_hangup(hass: HomeAssistant, socket_enabled) -> None:
         assert await voip.start()
         voip.sip.ping_loop.cancel()  # type: ignore
 
-        while voip.sip._started:
+        while voip.sip._state in (_SipState.STARTING, _SipState.RUNNING):
             await asyncio.sleep(1)
             async_fire_time_changed(hass, utcnow() + timedelta(seconds=1))
 
@@ -2618,7 +2619,7 @@ def soft_stop(voip: IntercomVoip | None) -> None:
     """Soft stop"""
 
     if voip:
-        voip.sip._started = False
+        voip.sip._state = _SipState.STOPPED
 
         if voip.sip.register_loop:
             voip.sip.register_loop.cancel()

@@ -77,6 +77,7 @@ class IntercomVoip:
         self.diagnostics: dict[str, Any] = {}
 
         self.calls: dict[str, Call] = {}
+        self._calls_lock = asyncio.Lock()
 
         self._address = address
         self._port = port
@@ -129,8 +130,8 @@ class IntercomVoip:
 
                 return proposed
 
-    async def clean_call(self, call_id: str) -> None:
-        """Clean calls
+    async def _clean_call_unlocked(self, call_id: str) -> None:
+        """Clean calls without locking (caller must hold _calls_lock).
 
         :param call_id
         """
@@ -143,6 +144,15 @@ class IntercomVoip:
                 self.session_ids.remove(int(call.session_id))
 
             del self.calls[call_id]
+
+    async def clean_call(self, call_id: str) -> None:
+        """Clean calls
+
+        :param call_id
+        """
+
+        async with self._calls_lock:
+            await self._clean_call_unlocked(call_id)
 
     async def _callback(self, message: Message) -> None:
         """Voip callback
@@ -164,7 +174,18 @@ class IntercomVoip:
 
                 return
 
-            self.hass.async_create_task(self._call_callback(call))  # pragma: no cover
+            self.hass.async_create_task(self._safe_call_callback(call))  # pragma: no cover
+
+    async def _safe_call_callback(self, call: Call) -> None:
+        """Safely execute call callback with error logging.
+
+        :param call: Call
+        """
+
+        try:
+            await self._call_callback(call)
+        except Exception:
+            _LOGGER.exception("Error in call callback for call %s", call.call_id)
 
     async def _callback_bye_or_cancel(self, message: Message) -> Call | None:
         """Voip bye or cancel callback
@@ -173,15 +194,16 @@ class IntercomVoip:
         :return Call | None
         """
 
-        call_id = message.headers["Call-ID"]
-        if call_id not in self.calls:  # pragma: no cover
-            return None
+        async with self._calls_lock:
+            call_id = message.headers["Call-ID"]
+            if call_id not in self.calls:  # pragma: no cover
+                return None
 
-        call: Call = self.calls[call_id]
-        call.state = CallState.ENDED
+            call: Call = self.calls[call_id]
+            call.state = CallState.ENDED
 
-        await call.stop_rtp()
-        await self.clean_call(call_id)
+            await call.stop_rtp()
+            await self._clean_call_unlocked(call_id)
 
         return call
 
@@ -192,14 +214,15 @@ class IntercomVoip:
         :return Call | None
         """
 
-        call_id = message.headers["Call-ID"]
-        if call_id not in self.calls:  # pragma: no cover
-            return None
+        async with self._calls_lock:
+            call_id = message.headers["Call-ID"]
+            if call_id not in self.calls:  # pragma: no cover
+                return None
 
-        call: Call = self.calls[call_id]
+            call: Call = self.calls[call_id]
 
-        if call.state == CallState.RINGING:
-            call.state = CallState.ANSWERED
+            if call.state == CallState.RINGING:
+                call.state = CallState.ANSWERED
 
         return call
 
@@ -210,24 +233,25 @@ class IntercomVoip:
         :return Call
         """
 
-        call_id = message.headers["Call-ID"]
+        async with self._calls_lock:
+            call_id = message.headers["Call-ID"]
 
-        if call_id in self.calls:  # pragma: no cover
-            if self.calls[call_id].state != CallState.RINGING:
-                await self.calls[call_id].renegotiate(message)
+            if call_id in self.calls:  # pragma: no cover
+                if self.calls[call_id].state != CallState.RINGING:
+                    await self.calls[call_id].renegotiate(message)
+
+                return self.calls[call_id]
+
+            self.calls[call_id] = Call(
+                self, CallState.RINGING, message, self.session_id, self._local_ip
+            )
+
+            async_call_later(
+                self.hass, VOIP_CLEAN_DELAY,
+                lambda _: self.hass.async_create_task(self.clean_call(call_id)),
+            )
 
             return self.calls[call_id]
-
-        self.calls[call_id] = Call(
-            self, CallState.RINGING, message, self.session_id, self._local_ip
-        )
-
-        async_call_later(
-            self.hass, VOIP_CLEAN_DELAY,
-            lambda _: self.hass.async_create_task(self.clean_call(call_id)),
-        )
-
-        return self.calls[call_id]
 
     async def safe_start(
         self, total_retry: int = 0, sleep: int = SIP_RETRY_SLEEP, retry: int = 1
@@ -295,15 +319,16 @@ class IntercomVoip:
 
         self._change_status(VoipState.INACTIVE)
 
-        call_ids: list = []
-        for call_id, call in self.calls.items():  # pragma: no cover
-            call.state = CallState.ENDED
+        async with self._calls_lock:
+            call_ids: list = []
+            for call_id, call in self.calls.items():  # pragma: no cover
+                call.state = CallState.ENDED
 
-            await call.stop_rtp()
-            call_ids.append(call_id)
+                await call.stop_rtp()
+                call_ids.append(call_id)
 
-        for call_id in call_ids:  # pragma: no cover
-            await self.clean_call(call_id)
+            for call_id in call_ids:  # pragma: no cover
+                await self._clean_call_unlocked(call_id)
 
         return state
 

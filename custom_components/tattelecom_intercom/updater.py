@@ -29,6 +29,7 @@ from .const import (
     ATTR_SIP_LOGIN,
     ATTR_STREAM_URL,
     ATTR_STREAM_URL_MPEG,
+    ATTR_UPDATE_STATE,
     ATTR_SIP_ADDRESS,
     ATTR_SIP_PORT,
     ATTR_SIP_PASSWORD,
@@ -122,6 +123,7 @@ class IntercomUpdater(DataUpdateCoordinator[dict[str, Any]]):
             if self._is_first_update:
                 await self._async_prepare(data)
             else:
+                data[ATTR_UPDATE_STATE] = True
                 await self._async_prepare_intercoms(data)
             return data
         except Exception as exc:
@@ -195,6 +197,7 @@ class IntercomUpdater(DataUpdateCoordinator[dict[str, Any]]):
         try:
             await self._async_prepare_sip_settings(data)
             self._is_first_update = False
+            data[ATTR_UPDATE_STATE] = True
         except IntercomConnectionError as _err:  # pragma: no cover
             _error = _err
 
@@ -299,8 +302,16 @@ class IntercomUpdater(DataUpdateCoordinator[dict[str, Any]]):
             )
 
             self.hass.async_create_task(
-                self.voip.safe_start(SIP_DEFAULT_RETRY)
+                self._safe_voip_start()
             )
+
+    async def _safe_voip_start(self) -> None:
+        """Safely start VoIP with error logging."""
+
+        try:
+            await self.voip.safe_start(SIP_DEFAULT_RETRY)
+        except Exception:
+            _LOGGER.exception("Error starting VoIP")
 
     async def _call_callback(self, call: Call) -> None:  # pragma: no cover
         """Call callback

@@ -113,16 +113,21 @@ class IntercomSensor(IntercomEntity, SensorEntity):
 
         IntercomEntity.__init__(self, unique_id, description, updater, ENTITY_ID_FORMAT)
 
-        self._attr_available: bool = updater.data.get(ATTR_UPDATE_STATE, False)
+        voip = updater.voip
+        last_call = updater.last_call
+
+        self._attr_available: bool = updater.data.get(ATTR_UPDATE_STATE, False) or (
+            voip is not None
+        )
 
         if description.key == SENSOR_SIP_STATE:
             self._attr_native_value = str(
-                updater.voip.status.value if updater.voip else VoipState.INACTIVE.value
+                voip.status.value if voip else VoipState.INACTIVE.value
             )
         elif description.key == SENSOR_CALL_STATE:
             self._attr_native_value = str(
-                updater.last_call.state.value
-                if updater.last_call
+                last_call.state.value
+                if last_call
                 else CallState.ENDED.value
             )
 
@@ -139,6 +144,9 @@ class IntercomSensor(IntercomEntity, SensorEntity):
             self._handle_event_update,
         )
 
+        # Sync to current state in case signals fired before subscription
+        self._handle_coordinator_update()
+
     async def will_remove_from_hass(self) -> None:  # pragma: no cover
         """Remove event"""
 
@@ -154,20 +162,25 @@ class IntercomSensor(IntercomEntity, SensorEntity):
     def _handle_coordinator_update(self) -> None:
         """Update state."""
 
-        is_available: bool = self._updater.data.get(ATTR_UPDATE_STATE, False)
+        voip = self._updater.voip
+        last_call = self._updater.last_call
+
+        is_available: bool = self._updater.data.get(ATTR_UPDATE_STATE, False) or (
+            voip is not None
+        )
 
         native_value: str | None = None
 
         if self.entity_description.key == SENSOR_SIP_STATE:
             native_value = str(
-                self._updater.voip.status.value
-                if self._updater.voip
+                voip.status.value
+                if voip
                 else VoipState.INACTIVE.value
             )
         elif self.entity_description.key == SENSOR_CALL_STATE:
             native_value = str(
-                self._updater.last_call.state.value
-                if self._updater.last_call
+                last_call.state.value
+                if last_call
                 else CallState.ENDED.value
             )
 
