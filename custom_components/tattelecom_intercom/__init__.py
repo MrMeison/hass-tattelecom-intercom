@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import logging
 
 from homeassistant.config_entries import ConfigEntry
@@ -16,9 +15,7 @@ from homeassistant.core import CALLBACK_TYPE, Event, HomeAssistant
 
 from .const import (
     CONF_PHONE,
-    DEFAULT_CALL_DELAY,
     DEFAULT_SCAN_INTERVAL,
-    DEFAULT_SLEEP,
     DEFAULT_TIMEOUT,
     DOMAIN,
     OPTION_IS_FROM_FLOW,
@@ -63,27 +60,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         async_update_options
     )
 
-    async def async_start(with_sleep: bool = False) -> None:
-        """Async start.
+    await _updater.async_config_entry_first_refresh()
 
-        :param with_sleep: bool
-        """
-
-        await _updater.async_config_entry_first_refresh()
-
-        if with_sleep:
-            await asyncio.sleep(DEFAULT_SLEEP)
-
-        await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
-
-    if is_new:
-        await async_start()
-        await asyncio.sleep(DEFAULT_SLEEP)
-    else:
-        hass.loop.call_later(
-            DEFAULT_CALL_DELAY,
-            lambda: hass.async_create_task(async_start(True)),
-        )
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     async def async_stop(event: Event) -> None:
         """Async stop"""

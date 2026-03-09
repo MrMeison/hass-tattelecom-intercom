@@ -15,6 +15,7 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import event
 from homeassistant.util.dt import utcnow
 from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.helpers.entity import EntityDescription
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.httpx_client import create_async_httpx_client
 from homeassistant.helpers.update_coordinator import (
@@ -239,7 +240,7 @@ class IntercomUpdater(DataUpdateCoordinator[dict[str, Any]]):
 
                 self.intercoms[gate["gate_id"]] = IntercomEntityDescription(
                     id=gate["gate_id"],
-                    key=gate["gate_id"],
+                    key=str(gate["gate_id"]),
                     name=f"intercom_{gate['gate_id']}",
                     device_info=DeviceInfo(
                         identifiers={(DOMAIN, str(gate["gate_id"]))},
@@ -311,14 +312,12 @@ class IntercomUpdater(DataUpdateCoordinator[dict[str, Any]]):
         async_dispatcher_send(self.hass, SIGNAL_CALL_STATE)
 
 
-@dataclass
-class IntercomEntityDescription:
+@dataclass(kw_only=True)
+class IntercomEntityDescription(EntityDescription):
     """Intercom entity description."""
 
     # pylint: disable=invalid-name
     id: int
-    key: int
-    name: str
     device_info: DeviceInfo
 
 

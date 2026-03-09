@@ -153,11 +153,13 @@ class IntercomCamera(IntercomEntity, GenericCamera):
             {
                 CONF_STREAM_SOURCE: source,
                 CONF_AUTHENTICATION: True,
-                CONF_LIMIT_REFETCH_TO_URL_CHANGE: False,
                 CONF_NAME: description.name,
                 CONF_CONTENT_TYPE: "video/mpeg",
-                CONF_FRAMERATE: 2,
-                CONF_VERIFY_SSL: False,
+                "advanced": {
+                    CONF_LIMIT_REFETCH_TO_URL_CHANGE: False,
+                    CONF_FRAMERATE: 2,
+                    CONF_VERIFY_SSL: False,
+                },
             },
             unique_id,
             description.name,
