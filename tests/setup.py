@@ -179,3 +179,21 @@ class MultipleSideEffect:  # pylint: disable=too-few-public-methods
             return func(*args, **kwargs)
         except Exception:
             return ""
+
+
+class AsyncMultipleSideEffect:  # pylint: disable=too-few-public-methods
+    """Async multiple side effect"""
+
+    def __init__(self, *fns):
+        """init"""
+
+        self.funcs = iter(fns)
+
+    async def __call__(self, *args, **kwargs):
+        """call"""
+
+        try:
+            func = next(self.funcs)
+            return func(*args, **kwargs)
+        except Exception:
+            return b""

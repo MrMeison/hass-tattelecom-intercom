@@ -1,7 +1,7 @@
 """Tattelecom intercom API client exceptions."""
 
 
-class IntercomError(BaseException):
+class IntercomError(Exception):
     """Intercom error"""
 
 

@@ -13,8 +13,8 @@ import select
 import socket
 import time
 import uuid
-from asyncio import Lock
 from collections.abc import Callable
+from enum import Enum
 from functools import cached_property
 from typing import Any
 
@@ -53,6 +53,15 @@ from .helper import Counter
 _LOGGER = logging.getLogger(__name__)
 
 
+class _SipState(Enum):
+    """Internal SIP connection state"""
+
+    STOPPED = "stopped"
+    STARTING = "starting"
+    RUNNING = "running"
+    STOPPING = "stopping"
+
+
 class IntercomSip:
     """Intercom sip class"""
 
@@ -68,14 +77,13 @@ class IntercomSip:
     _local_ip: str
     _local_port: int
 
-    _started: bool = False
+    _state: _SipState = _SipState.STOPPED
     _internet_connect: bool = True
 
     _callback: Callable
     _status_callback: Callable
     _debug_callback: Callable
 
-    _recv_lock: Lock
     _tags: list = []
 
     _cnt_call_id: Counter
@@ -129,8 +137,6 @@ class IntercomSip:
         self._status_callback = status_callback  # type: ignore
         self._debug_callback = debug_callback  # type: ignore
 
-        self._recv_lock = Lock()
-
         self._cnt_call_id = Counter()
         self._cnt_register = Counter(20)
 
@@ -168,33 +174,53 @@ class IntercomSip:
 
                 return tag
 
+    def _sync_recv_with_timeout(self, timeout: float = SIP_TIMEOUT) -> bytes:
+        """Synchronous receive with select+recv (runs in executor thread).
+
+        :param timeout: float: Timeout in seconds
+        :return bytes: Received data
+        """
+
+        ready: tuple = select.select([self._in], [], [], timeout)
+        if not ready or not ready[0] or not self._in:
+            raise TimeoutError("SIP operation timed out")
+        return self._in.recv(8192)
+
+    async def _recv_with_timeout(self, timeout: float = SIP_TIMEOUT) -> bytes:
+        """Receive data from socket with async timeout (non-blocking).
+
+        :param timeout: float: Timeout in seconds
+        :return bytes: Received data
+        """
+
+        return await self.hass.async_add_executor_job(
+            self._sync_recv_with_timeout, timeout
+        )
+
     async def start(self) -> None:
         """Start voip sip"""
 
-        if self._started:
+        if self._state == _SipState.RUNNING:
             raise IntercomSipAlreadyStartedError(
                 "Attempted to start already started SIP."
             )
 
-        self._started = True
+        self._state = _SipState.STARTING
 
         await self.open_sockets()
 
         try:
             await self._register()
         except TimeoutError as _err:
-            self._started = False
-
-            self._safe_release()
+            self._state = _SipState.STOPPED
 
             raise IntercomSipTimeoutError(str(_err)) from _err
         except IntercomError as _err:
-            self._started = False
-
-            self._safe_release()
+            self._state = _SipState.STOPPED
 
             raise IntercomError(str(_err)) from _err
 
+        self._state = _SipState.RUNNING
         self.recv_loop = self.hass.async_create_task(self._recv())
         self.ping_loop = self.hass.async_create_task(self._ping())
 
@@ -208,8 +234,8 @@ class IntercomSip:
         if self.register_loop and not safe:
             self.register_loop.cancel()
 
-        _prev_state: bool = self._started
-        self._started = False
+        prev_state = self._state
+        self._state = _SipState.STOPPING
 
         await asyncio.sleep(1)
 
@@ -219,9 +245,8 @@ class IntercomSip:
         if self.ping_loop:
             self.ping_loop.cancel()
 
-        self._started = _prev_state
-
-        if not self._started and not force:
+        if prev_state == _SipState.STOPPED and not force:
+            self._state = _SipState.STOPPED
             self.close_sockets()
 
             return
@@ -229,20 +254,14 @@ class IntercomSip:
         if force:
             await self.open_sockets()
 
-        self._safe_release()
-
         try:
             await self._deregister()
         except TimeoutError as _err:
-            self._safe_release()
-
             raise IntercomSipTimeoutError(str(_err)) from _err
         except (IntercomError, TypeError) as _err:
-            self._safe_release()
-
             raise IntercomError(str(_err)) from _err
 
-        self._started = False
+        self._state = _SipState.STOPPED
 
         if not force:
             self.close_sockets()
@@ -306,32 +325,27 @@ class IntercomSip:
         await self._send(self._decline_payload(message).encode("utf8"))
 
     async def _recv(self) -> None:
-        while self._started and self._in:
-            async with self._recv_lock:
-                try:
-                    raw = self._in.recv(8192)
+        while self._state in (_SipState.STARTING, _SipState.RUNNING) and self._in:
+            try:
+                raw = self._in.recv(8192)
 
-                    if raw not in (b"\x00\x00\x00\x00", b"\r\n") and len(raw) > 0:
-                        message = await MessageParser().parse(raw)
-                        await self._handle(message)
-                except BlockingIOError:  # pragma: no cover
-                    await asyncio.sleep(0.01)
-                except IntercomError as _err:
-                    _LOGGER.debug("Recv error: %r", _err)
+                if raw not in (b"\x00\x00\x00\x00", b"\r\n") and len(raw) > 0:
+                    message = await MessageParser().parse(raw)
+                    await self._handle(message)
+            except BlockingIOError:  # pragma: no cover
+                await asyncio.sleep(0.01)
+            except asyncio.CancelledError:
+                break
+            except IntercomError as _err:
+                _LOGGER.debug("Recv error: %r", _err)
 
-                    await asyncio.sleep(0.01)
+                await asyncio.sleep(0.01)
 
     async def _ping(self) -> None:
-        while self._started:
+        while self._state in (_SipState.STARTING, _SipState.RUNNING):
             await self._send(b"0d0a0d0a")
 
             await asyncio.sleep(SIP_PING_TIMEOUT)
-
-    def _safe_release(self) -> None:
-        """Safe release"""
-
-        if self._recv_lock.locked():  # pragma: no cover
-            self._recv_lock.release()
 
     async def _safe_register(self) -> None:
         """Register command"""
@@ -349,8 +363,6 @@ class IntercomSip:
         except (IntercomError, TimeoutError) as _err:
             _LOGGER.debug("Re-registration error: %r", _err)
 
-            self._safe_release()
-
             self._status_callback(VoipState.FAILED)
 
             self.register_loop = async_call_later(
@@ -361,44 +373,36 @@ class IntercomSip:
     async def _register(self) -> None:
         """Register command"""
 
-        self._safe_release()
+        await self._send(self._register_payload(self._reg_urn_uuid).encode("utf8"))
 
-        async with self._recv_lock:
-            await self._send(self._register_payload(self._reg_urn_uuid).encode("utf8"))
+        raw = await self._recv_with_timeout()
+        message: Message = await MessageParser().parse(raw)
+        self._debug_message(message)
 
-            ready: tuple = select.select([self._in], [], [], SIP_TIMEOUT)
-            if not ready or not ready[0] or not self._in:
-                raise TimeoutError("Registering on SIP Server timed out")
-
-            message: Message = await MessageParser().parse(self._in.recv(8192))
+        if message.status == MessageStatus.TRYING:
+            raw = await self._recv_with_timeout()
+            message = await MessageParser().parse(raw)
             self._debug_message(message)
 
-            if message.status == MessageStatus.TRYING:
-                message = await MessageParser().parse(self._in.recv(8192))
-                self._debug_message(message)
+        if message.status == MessageStatus.BAD_REQUEST:
+            raise IntercomInvalidStateError(MessageStatus.BAD_REQUEST.description)
 
-            if message.status == MessageStatus.BAD_REQUEST:
-                raise IntercomInvalidStateError(MessageStatus.BAD_REQUEST.description)
+        if message.status == MessageStatus.UNAUTHORIZED:
+            await self._send(
+                self._register_payload(self._reg_urn_uuid, message).encode("utf8")
+            )
 
-            if message.status == MessageStatus.UNAUTHORIZED:
-                await self._send(
-                    self._register_payload(self._reg_urn_uuid, message).encode("utf8")
-                )
+            raw = await self._recv_with_timeout()
+            message = await MessageParser().parse(raw)
+            self._debug_message(message)
 
-                ready = select.select([self._in], [], [], SIP_TIMEOUT)
-                if not ready or not ready[0] or not self._in:
-                    raise TimeoutError("Registering on SIP Server timed out")
+        if message.status == MessageStatus.UNAUTHORIZED:
+            raise IntercomInvalidAccountInfoError(
+                f"Invalid Username or Password for SIP server {self._address}:{self._local_port}"
+            )
 
-                message = await MessageParser().parse(self._in.recv(8192))
-                self._debug_message(message)
-
-            if message.status == MessageStatus.UNAUTHORIZED:
-                raise IntercomInvalidAccountInfoError(
-                    f"Invalid Username or Password for SIP server {self._address}:{self._local_port}"
-                )
-
-            if message.status == MessageStatus.BAD_REQUEST:
-                raise IntercomInvalidStateError(MessageStatus.BAD_REQUEST.description)
+        if message.status == MessageStatus.BAD_REQUEST:
+            raise IntercomInvalidStateError(MessageStatus.BAD_REQUEST.description)
 
         if message.status != MessageStatus.PROXY_AUTHENTICATION_REQUIRED:
             if not message.status or message.status.value >= 500:
@@ -413,7 +417,7 @@ class IntercomSip:
                 f"Invalid Username or Password for SIP server {self._address}:{self._local_port}"
             )
 
-        if self._started:
+        if self._state in (_SipState.STARTING, _SipState.RUNNING):
             self.register_loop = async_call_later(
                 self.hass, SIP_EXPIRES - 10,
                 lambda _: self.hass.async_create_task(self._safe_register()),
@@ -422,35 +426,26 @@ class IntercomSip:
     async def _deregister(self) -> None:
         """Deregister command"""
 
-        self._safe_release()
+        await self._send(
+            self._register_payload(self._reg_urn_uuid, register=False).encode(
+                "utf8"
+            )
+        )
 
-        async with self._recv_lock:
+        raw = await self._recv_with_timeout()
+        message: Message = await MessageParser().parse(raw)
+        self._debug_message(message)
+
+        if message.status == MessageStatus.UNAUTHORIZED:
             await self._send(
-                self._register_payload(self._reg_urn_uuid, register=False).encode(
-                    "utf8"
-                )
+                self._register_payload(
+                    self._reg_urn_uuid, message, register=False
+                ).encode("utf8")
             )
 
-            ready: tuple = select.select([self._in], [], [], SIP_TIMEOUT)
-            if not ready or not ready[0] or not self._in:
-                raise TimeoutError("Registering on SIP Server timed out")
-
-            message: Message = await MessageParser().parse(self._in.recv(8192))
+            raw = await self._recv_with_timeout()
+            message = await MessageParser().parse(raw)
             self._debug_message(message)
-
-            if message.status == MessageStatus.UNAUTHORIZED:
-                await self._send(
-                    self._register_payload(
-                        self._reg_urn_uuid, message, register=False
-                    ).encode("utf8")
-                )
-
-                ready = select.select([self._in], [], [], SIP_TIMEOUT)
-                if not ready or not ready[0] or not self._in:
-                    raise TimeoutError("Registering on SIP Server timed out")
-
-                message = await MessageParser().parse(self._in.recv(8192))
-                self._debug_message(message)
 
         if not message.status or message.status.value >= 500:
             await asyncio.sleep(SIP_RETRY_SLEEP)
