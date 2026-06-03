@@ -105,11 +105,11 @@ class IntercomUpdater(DataUpdateCoordinator[dict[str, Any]]):
         """Initialize HTTP client asynchronously to avoid blocking the event loop."""
 
         _transport = await self.hass.async_add_executor_job(
-            lambda: AsyncHTTPTransport(http1=False, http2=True, retries=3)
+            lambda: AsyncHTTPTransport(http1=True, http2=True, retries=3)
         )
         self.client = IntercomClient(
             create_async_httpx_client(
-                self.hass, True, http1=False, http2=True, transport=_transport
+                self.hass, True, http1=True, http2=True, transport=_transport
             ),
             self.phone,
             self.token,
