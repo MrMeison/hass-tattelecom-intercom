@@ -75,7 +75,7 @@ class IntercomBinarySensor(IntercomEntity, BinarySensorEntity):
         """Initialize binary sensor."""
         super().__init__(unique_id, description, updater, ENTITY_ID_FORMAT)
         
-        self._attr_is_on = bool(updater.data.get(description.key, False))
+        self._attr_is_on = not bool(updater.data.get(description.key, False))
 
     @property
     def is_on(self) -> bool | None:
@@ -84,7 +84,7 @@ class IntercomBinarySensor(IntercomEntity, BinarySensorEntity):
 
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
-        is_on = bool(self.coordinator.data.get(self.entity_description.key, False))
-        if self._attr_is_on != is_on:
-            self._attr_is_on = is_on
-            self.async_write_ha_state()
+        self._attr_is_on = not bool(
+            self.coordinator.data.get(self.entity_description.key, False)
+        )
+        self.async_write_ha_state()

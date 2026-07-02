@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import hashlib
 import logging
 import random
@@ -18,7 +19,7 @@ from enum import Enum
 from functools import cached_property
 from typing import Any
 
-from homeassistant.core import HomeAssistant
+from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
 from homeassistant.helpers.event import async_call_later
 from homeassistant.util.read_only_dict import ReadOnlyDict
 
@@ -89,7 +90,8 @@ class IntercomSip:
     _cnt_call_id: Counter
     _cnt_register: Counter
 
-    register_loop: asyncio.TimerHandle | None = None
+    # async_call_later returns an unsubscribe callback, not a TimerHandle
+    _cancel_register_timer: CALLBACK_TYPE | None = None
     recv_loop: asyncio.Task | None = None
     ping_loop: asyncio.Task | None = None
 
@@ -200,6 +202,8 @@ class IntercomSip:
     async def start(self) -> None:
         """Start voip sip"""
 
+        _LOGGER.debug("SIP start: current state=%s", self._state)
+
         if self._state == _SipState.RUNNING:
             raise IntercomSipAlreadyStartedError(
                 "Attempted to start already started SIP."
@@ -213,16 +217,27 @@ class IntercomSip:
             await self._register()
         except TimeoutError as _err:
             self._state = _SipState.STOPPED
+            _LOGGER.warning("SIP start: registration timed out: %s", _err)
 
             raise IntercomSipTimeoutError(str(_err)) from _err
         except IntercomError as _err:
             self._state = _SipState.STOPPED
+            _LOGGER.warning("SIP start: registration error: %s", _err)
 
             raise IntercomError(str(_err)) from _err
 
         self._state = _SipState.RUNNING
-        self.recv_loop = self.hass.async_create_task(self._recv())
-        self.ping_loop = self.hass.async_create_task(self._ping())
+        # Background tasks: bootstrap does not wait for them ("Setup timed out")
+        # and HA cancels them itself on shutdown instead of blocking final writes.
+        # eager_start=False: _recv iterates without yielding until the socket
+        # is drained — an eager first run inside start() would starve the loop.
+        self.recv_loop = self.hass.async_create_background_task(
+            self._recv(), name="tattelecom_intercom sip recv", eager_start=False
+        )
+        self.ping_loop = self.hass.async_create_background_task(
+            self._ping(), name="tattelecom_intercom sip ping", eager_start=False
+        )
+        _LOGGER.debug("SIP start: running, recv and ping loops started")
 
     async def stop(self, force: bool = False, safe: bool = False) -> None:
         """Stop voip sip
@@ -231,23 +246,42 @@ class IntercomSip:
         :param safe: bool
         """
 
-        if self.register_loop and not safe:
-            self.register_loop.cancel()
+        _LOGGER.debug(
+            "SIP stop: state=%s, force=%s, safe=%s", self._state, force, safe
+        )
+
+        if self._cancel_register_timer and not safe:
+            self._cancel_register_timer()
+            self._cancel_register_timer = None
+            _LOGGER.debug("SIP stop: register timer cancelled")
 
         prev_state = self._state
         self._state = _SipState.STOPPING
 
         await asyncio.sleep(1)
 
+        current_task = asyncio.current_task()
+
         if self.recv_loop:
             self.recv_loop.cancel()
+            if self.recv_loop is not current_task:
+                with contextlib.suppress(asyncio.CancelledError):
+                    await self.recv_loop
+            self.recv_loop = None
+            _LOGGER.debug("SIP stop: recv_loop cancelled")
 
         if self.ping_loop:
             self.ping_loop.cancel()
+            if self.ping_loop is not current_task:
+                with contextlib.suppress(asyncio.CancelledError):
+                    await self.ping_loop
+            self.ping_loop = None
+            _LOGGER.debug("SIP stop: ping_loop cancelled")
 
         if prev_state == _SipState.STOPPED and not force:
             self._state = _SipState.STOPPED
             self.close_sockets()
+            _LOGGER.debug("SIP stop: was already stopped, sockets closed")
 
             return
 
@@ -257,8 +291,10 @@ class IntercomSip:
         try:
             await self._deregister()
         except TimeoutError as _err:
+            _LOGGER.warning("SIP stop: deregister timed out: %s", _err)
             raise IntercomSipTimeoutError(str(_err)) from _err
         except (IntercomError, TypeError) as _err:
+            _LOGGER.warning("SIP stop: deregister error: %s", _err)
             raise IntercomError(str(_err)) from _err
 
         self._state = _SipState.STOPPED
@@ -266,9 +302,12 @@ class IntercomSip:
         if not force:
             self.close_sockets()
 
+        _LOGGER.debug("SIP stop: completed, state=%s", self._state)
+
     def close_sockets(self) -> None:
         """Close sockets"""
 
+        _LOGGER.debug("SIP close_sockets: closing")
         if self._in:
             self._in.close()
 
@@ -290,6 +329,15 @@ class IntercomSip:
 
             self._in.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             self._in.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+
+            _LOGGER.debug(
+                "SIP sockets opened: %s:%s (fd=%s)",
+                self._local_ip, self._local_port, self._in.fileno(),
+            )
+        else:
+            _LOGGER.debug(
+                "SIP sockets already open: fd=%s", self._in.fileno()
+            )
 
     async def answer(
         self,
@@ -325,21 +373,40 @@ class IntercomSip:
         await self._send(self._decline_payload(message).encode("utf8"))
 
     async def _recv(self) -> None:
+        _LOGGER.debug("SIP _recv loop started, state=%s", self._state)
+        _recv_count = 0
         while self._state in (_SipState.STARTING, _SipState.RUNNING) and self._in:
             try:
                 raw = self._in.recv(8192)
 
                 if raw not in (b"\x00\x00\x00\x00", b"\r\n") and len(raw) > 0:
+                    _recv_count += 1
+                    _LOGGER.debug(
+                        "SIP _recv: packet #%d, %d bytes, first 80: %r",
+                        _recv_count, len(raw), raw[:80],
+                    )
                     message = await MessageParser().parse(raw)
+                    _LOGGER.debug(
+                        "SIP _recv: parsed type=%s method=%s status=%s",
+                        message.type, message.method, message.status,
+                    )
                     await self._handle(message)
             except BlockingIOError:  # pragma: no cover
                 await asyncio.sleep(0.01)
             except asyncio.CancelledError:
+                _LOGGER.debug("SIP _recv loop cancelled")
                 break
             except IntercomError as _err:
-                _LOGGER.debug("Recv error: %r", _err)
-
+                _LOGGER.debug("SIP _recv error: %r", _err)
                 await asyncio.sleep(0.01)
+            except Exception as _err:
+                _LOGGER.exception("SIP _recv unexpected error: %r", _err)
+                await asyncio.sleep(0.1)
+
+        _LOGGER.debug(
+            "SIP _recv loop exited: state=%s, socket=%s, packets_received=%d",
+            self._state, self._in is not None, _recv_count,
+        )
 
     async def _ping(self) -> None:
         while self._state in (_SipState.STARTING, _SipState.RUNNING):
@@ -347,8 +414,22 @@ class IntercomSip:
 
             await asyncio.sleep(SIP_PING_TIMEOUT)
 
+    def _set_register_timer(self, delay: float, action: Callable) -> None:
+        """Schedule (re)registration, cancelling any previous timer first
+
+        :param delay: float: Delay in seconds
+        :param action: Callable: Timer callback
+        """
+
+        if self._cancel_register_timer:
+            self._cancel_register_timer()
+
+        self._cancel_register_timer = async_call_later(self.hass, delay, action)
+
     async def _safe_register(self) -> None:
         """Register command"""
+
+        _LOGGER.debug("SIP _safe_register: starting re-registration")
 
         try:
             self._status_callback(VoipState.DEREGISTERING)
@@ -360,19 +441,22 @@ class IntercomSip:
             await self.start()
 
             self._status_callback(VoipState.REGISTERED)
+            _LOGGER.debug("SIP _safe_register: re-registration successful")
         except (IntercomError, TimeoutError) as _err:
-            _LOGGER.debug("Re-registration error: %r", _err)
+            _LOGGER.warning("SIP _safe_register: re-registration failed: %r", _err)
 
             self._status_callback(VoipState.FAILED)
 
-            self.register_loop = async_call_later(
-                self.hass, SIP_RETRY_SLEEP,
-                lambda _: self.hass.async_create_task(self._safe_register()),
-            )
+            @callback
+            def _retry_register(_now) -> None:
+                self.hass.async_create_task(self._safe_register())
+
+            self._set_register_timer(SIP_RETRY_SLEEP, _retry_register)
 
     async def _register(self) -> None:
         """Register command"""
 
+        _LOGGER.debug("SIP _register: sending REGISTER to %s:%s", self._address, self._port)
         await self._send(self._register_payload(self._reg_urn_uuid).encode("utf8"))
 
         raw = await self._recv_with_timeout()
@@ -418,14 +502,30 @@ class IntercomSip:
             )
 
         if self._state in (_SipState.STARTING, _SipState.RUNNING):
-            self.register_loop = async_call_later(
-                self.hass, SIP_EXPIRES - 10,
-                lambda _: self.hass.async_create_task(self._safe_register()),
+            expire_time = SIP_EXPIRES
+            contact = message.headers.get("Contact", "")
+            if isinstance(contact, str):
+                match = re.search(r"expires=(\d+)", contact)
+                if match:
+                    expire_time = int(match.group(1))
+
+            reregister_in = max(expire_time - 10, 30)
+            _LOGGER.debug(
+                "SIP _register: OK, server expires=%ds, re-register in %ds",
+                expire_time, reregister_in,
             )
+
+            @callback
+            def _schedule_reregister(_now) -> None:
+                _LOGGER.debug("SIP: re-registration timer fired")
+                self.hass.async_create_task(self._safe_register())
+
+            self._set_register_timer(reregister_in, _schedule_reregister)
 
     async def _deregister(self) -> None:
         """Deregister command"""
 
+        _LOGGER.debug("SIP _deregister: sending REGISTER with Expires: 0")
         await self._send(
             self._register_payload(self._reg_urn_uuid, register=False).encode(
                 "utf8"
@@ -471,18 +571,34 @@ class IntercomSip:
         self._debug_message(message)
 
         if message.type != MessageType.MESSAGE:
+            _LOGGER.debug(
+                "SIP _handle: ignoring non-MESSAGE type=%s status=%s",
+                message.type, message.status,
+            )
             return
 
+        _LOGGER.debug(
+            "SIP _handle: method=%s, call_id=%s",
+            message.method, message.headers.get("Call-ID", "?"),
+        )
+
         if message.method == "INVITE":
+            _LOGGER.info("SIP _handle: INVITE received, sending TRYING+RINGING")
             await self._send(self._trying_payload(message).encode("utf8"))
             await self._send(self._ringing_payload(message).encode("utf8"))
         elif message.method == "CANCEL":
+            _LOGGER.info("SIP _handle: CANCEL received, sending OK+TERMINATED")
             await self._send(self._ok_payload(message).encode("utf8"))
             await self._send(self._terminated_payload(message).encode("utf8"))
         elif message.method == "BYE":
+            _LOGGER.info("SIP _handle: BYE received, sending OK")
             await self._send(self._ok_payload(message).encode("utf8"))
 
         if message.method in ["INVITE", "ACK", "CANCEL", "BYE"]:
+            _LOGGER.debug(
+                "SIP _handle: dispatching %s to voip callback, call_id=%s",
+                message.method, message.headers.get("Call-ID", "?"),
+            )
             await self._callback(message)
 
     async def _send(self, message: bytes) -> None:

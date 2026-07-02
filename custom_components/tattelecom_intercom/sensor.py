@@ -98,6 +98,15 @@ class IntercomSensor(IntercomEntity, SensorEntity):
 
     _unsub_update: CALLBACK_TYPE
 
+    @property
+    def available(self) -> bool:
+        """Is available
+
+        :return bool: Is available
+        """
+
+        return self._attr_available
+
     def __init__(
         self,
         unique_id: str,

@@ -10,7 +10,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 from homeassistant.components.camera import ENTITY_ID_FORMAT as CAMERA_ENTITY_ID_FORMAT
-from homeassistant.components.camera import STATE_STREAMING
+from homeassistant.components.camera import CameraState
 from homeassistant.core import HomeAssistant, State
 from homeassistant.util.dt import utcnow
 from pytest_homeassistant_custom_component.common import async_fire_time_changed
@@ -82,7 +82,7 @@ async def test_init(hass: HomeAssistant) -> None:
         state: State = hass.states.get(
             _generate_id(str(MOCK_INTERCOM_ID), updater.phone)
         )
-        assert state.state == STATE_STREAMING
+        assert state.state == CameraState.STREAMING
         assert state.name == CAMERA_NAME
         assert state.attributes["icon"] == "mdi:doorbell-video"
         assert state.attributes["brand"] == MAINTAINER

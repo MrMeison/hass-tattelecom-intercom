@@ -2621,8 +2621,9 @@ def soft_stop(voip: IntercomVoip | None) -> None:
     if voip:
         voip.sip._state = _SipState.STOPPED
 
-        if voip.sip.register_loop:
-            voip.sip.register_loop.cancel()
+        if voip.sip._cancel_register_timer:
+            voip.sip._cancel_register_timer()
+            voip.sip._cancel_register_timer = None
 
         if voip.sip.recv_loop:
             voip.sip.recv_loop.cancel()

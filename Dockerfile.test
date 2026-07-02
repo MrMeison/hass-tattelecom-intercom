@@ -1,0 +1,18 @@
+FROM python:3.14-slim
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc libc6-dev libffi-dev ffmpeg libturbojpeg0-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements_test.txt .
+RUN pip install --no-cache-dir -r requirements_test.txt "httpx[http2]" av PyTurboJPEG
+
+COPY pytest.ini .
+COPY custom_components/ custom_components/
+COPY tests/ tests/
+
+ENV PYTHONPATH=/app
+
+CMD ["python", "-m", "pytest", "tests/", "-v", "--tb=short"]
