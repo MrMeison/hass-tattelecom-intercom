@@ -124,7 +124,15 @@ class IntercomUpdater(DataUpdateCoordinator[dict[str, Any]]):
                 await self._async_prepare(data)
             else:
                 data[ATTR_UPDATE_STATE] = True
-                await self._async_prepare_intercoms(data)
+                try:
+                    await self._async_prepare_intercoms(data)
+                except IntercomConnectionError:
+                    _LOGGER.debug("Failed to refresh intercoms, using cached data")
+
+                    if self.data:
+                        for key, value in self.data.items():
+                            if key not in data:
+                                data[key] = value
             return data
         except Exception as exc:
             raise UpdateFailed(f"Error communicating with API: {exc}") from exc
