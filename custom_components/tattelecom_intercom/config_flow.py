@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping
+from typing import Any
 
 import voluptuous as vol
 from homeassistant import config_entries
+from homeassistant.config_entries import SOURCE_REAUTH, SOURCE_RECONFIGURE
 from homeassistant.const import CONF_SCAN_INTERVAL, CONF_TIMEOUT, CONF_TOKEN
 from homeassistant.core import callback
 from homeassistant.data_entry_flow import FlowHandler, FlowResult
@@ -14,8 +17,10 @@ from homeassistant.helpers.typing import ConfigType
 
 from .client import IntercomClient
 from .const import (
+    CONF_ENABLE_SIP,
     CONF_PHONE,
     CONF_SMS_CODE,
+    DEFAULT_ENABLE_SIP,
     DEFAULT_SCAN_INTERVAL,
     DEFAULT_TIMEOUT,
     DOMAIN,
@@ -45,14 +50,18 @@ class IntercomFlow(FlowHandler):
     _entry_data: ConfigType | None = None
 
     async def async_step_phone(
-        self, user_input: ConfigType, errors: dict | None = None
+        self, user_input: ConfigType | None = None, errors: dict | None = None
     ) -> FlowResult:
         """Handle a flow phone number.
 
-        :param user_input: ConfigType: User data
+        :param user_input: ConfigType | None: User data
         :param errors: dict | None: Errors list
         :return FlowResult: Result object
         """
+
+        # Reopening an in-progress flow makes Home Assistant re-run the current
+        # step with no input — that must redraw the form, not crash.
+        user_input = user_input or {}
 
         if user_input.get(CONF_PHONE):
             self._entry_data = user_input
@@ -93,17 +102,19 @@ class IntercomFlow(FlowHandler):
         )
 
     async def async_step_confirm(
-        self, user_input: ConfigType, errors: dict | None = None
+        self, user_input: ConfigType | None = None, errors: dict | None = None
     ) -> FlowResult:
         """Handle a flow initialized by the signin or register.
 
-        :param user_input: ConfigType: User data
+        :param user_input: ConfigType | None: User data
         :param errors: dict | None: Errors list
         :return FlowResult: Result object
         """
 
+        user_input = user_input or {}
+
         if user_input.get(CONF_SMS_CODE):
-            self._entry_data |= user_input
+            self._entry_data = (self._entry_data or {}) | user_input
 
             try:
                 result: dict = await self._client.sms_confirm(  # type: ignore
@@ -186,14 +197,35 @@ class IntercomConfigFlow(IntercomFlow, config_entries.ConfigFlow, domain=DOMAIN)
 
         return await self.async_step_phone(user_input or {})
 
-    async def async_step_reauth(
-        self, user_input: ConfigType | None = None
-    ) -> FlowResult:
+    async def async_step_reauth(self, entry_data: Mapping[str, Any]) -> FlowResult:
         """Handle a flow initialized by the reauth.
 
-        :param user_input: ConfigType: User data
+        Triggered by ConfigEntryAuthFailed: the session token issued by the
+        operator expires (re-login in the phone app rotates it). The user
+        re-confirms the SMS code and the entry keeps its entities.
+
+        :param entry_data: Mapping[str, Any]: Current entry data
         :return FlowResult: Result object
         """
+
+        self._config_entry = self._get_reauth_entry()
+
+        return await self.async_step_phone({})
+
+    async def async_step_reconfigure(
+        self, user_input: ConfigType | None = None
+    ) -> FlowResult:
+        """Handle a flow initialized by the reconfigure.
+
+        Same signin steps as the initial setup (phone -> SMS -> token), but the
+        config entry is updated in place instead of being recreated, so entity
+        ids, automations and dashboards survive.
+
+        :param user_input: ConfigType | None: User data
+        :return FlowResult: Result object
+        """
+
+        self._config_entry = self._get_reconfigure_entry()
 
         return await self.async_step_phone(user_input or {})
 
@@ -209,6 +241,17 @@ class IntercomConfigFlow(IntercomFlow, config_entries.ConfigFlow, domain=DOMAIN)
 
         unique_id: str = str(data.get(CONF_PHONE))
 
+        if self.source in (SOURCE_REAUTH, SOURCE_RECONFIGURE) and self._config_entry:
+            return self.async_update_reload_and_abort(
+                self._config_entry,
+                unique_id=unique_id,
+                title=unique_id,
+                data={**self._config_entry.data, **data},
+                # get_config_value() reads options first, so a stale token left
+                # there would shadow the fresh one in data.
+                options=self._merge_options(data),
+            )
+
         await self.async_set_unique_id(unique_id)
         self._abort_if_unique_id_configured()
 
@@ -218,6 +261,21 @@ class IntercomConfigFlow(IntercomFlow, config_entries.ConfigFlow, domain=DOMAIN)
             data=data,
             options=options,
         )
+
+    def _merge_options(self, data: ConfigType) -> ConfigType:
+        """Refresh credentials inside existing options, keeping tuning values.
+
+        :param data: ConfigType: Fresh credentials
+        :return ConfigType: Options data
+        """
+
+        options: dict = dict(self._config_entry.options) if self._config_entry else {}
+
+        for key in (CONF_PHONE, CONF_SMS_CODE, CONF_TOKEN):
+            if key in options and key in data:
+                options[key] = data[key]
+
+        return options
 
 
 class IntercomOptionsFlow(IntercomFlow, config_entries.OptionsFlow):
@@ -246,14 +304,16 @@ class IntercomOptionsFlow(IntercomFlow, config_entries.OptionsFlow):
         return await self.async_step_phone(user_input or {})
 
     async def async_step_phone(
-        self, user_input: ConfigType, errors: dict | None = None
+        self, user_input: ConfigType | None = None, errors: dict | None = None
     ) -> FlowResult:
         """Manage the options.
 
-        :param user_input: ConfigType: User data
+        :param user_input: ConfigType | None: User data
         :param errors: dict | None: Errors list
         :return FlowResult: Result object
         """
+
+        user_input = user_input or {}
 
         if len(user_input) > 0 and not errors:
             _is_change_phone: bool = get_config_value(
@@ -327,6 +387,15 @@ class IntercomOptionsFlow(IntercomFlow, config_entries.OptionsFlow):
                             ),
                         ),
                     ): vol.All(vol.Coerce(int), vol.Range(min=DEFAULT_TIMEOUT)),
+                    vol.Required(
+                        CONF_ENABLE_SIP,
+                        default=user_input.get(
+                            CONF_ENABLE_SIP,
+                            get_config_value(
+                                self._config_entry, CONF_ENABLE_SIP, DEFAULT_ENABLE_SIP
+                            ),
+                        ),
+                    ): bool,
                 }
             ),
             errors=errors,

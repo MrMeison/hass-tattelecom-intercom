@@ -1,5 +1,10 @@
 {
   "config": {
+    "abort": {
+      "single_instance_allowed": "Already configured. Only a single configuration possible.",
+      "reauth_successful": "Re-authorization was successful, a new token has been saved.",
+      "reconfigure_successful": "Reconfiguration was successful, a new token has been saved."
+    },
     "error": {
       "unauthorized.error": "An authorization error has occurred. Most likely, you are authorized on another resource.",
       "connection.error": "A network error has occurred. Try later."
@@ -40,7 +45,11 @@
         "data": {
           "phone": "Phone number",
           "scan_interval": "Scan interval in seconds [PRO]",
-          "timeout": "Timeout of requests in seconds [PRO]"
+          "timeout": "Timeout of requests in seconds [PRO]",
+          "enable_sip": "Answer calls in Home Assistant (built-in SIP client)"
+        },
+        "data_description": {
+          "enable_sip": "Off by default: call state and cameras work without it, but answering a call requires either this client or a PBX registered with the operator."
         }
       },
       "register": {

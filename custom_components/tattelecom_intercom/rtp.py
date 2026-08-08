@@ -187,15 +187,26 @@ class RtpClient:
 
         while self._started and self._in:
             try:
-                if raw := self._in.recv(8192):
-                    if self._debug_callback is not None:  # pragma: no cover
-                        self._debug_callback(
-                            "rtp_recv", "RTP Recv: %r", raw.hex(), increment=True
-                        )
-
-                    await self._parse_packet(raw)
+                raw = self._in.recv(8192)
             except OSError:  # pragma: no cover
                 await asyncio.sleep(0.01)
+
+                continue
+
+            if not raw:
+                # An empty datagram must still yield control: without this the
+                # loop spins on recv() and starves the event loop — nothing else
+                # runs, not even stop().
+                await asyncio.sleep(0.01)
+
+                continue
+
+            if self._debug_callback is not None:  # pragma: no cover
+                self._debug_callback(
+                    "rtp_recv", "RTP Recv: %r", raw.hex(), increment=True
+                )
+
+            await self._parse_packet(raw)
 
     async def _trans(self) -> None:
         """Transmitter"""

@@ -1,5 +1,10 @@
 {
     "config": {
+        "abort": {
+            "reauth_successful": "Re-authorization was successful, a new token has been saved.",
+            "reconfigure_successful": "Reconfiguration was successful, a new token has been saved.",
+            "single_instance_allowed": "Already configured. Only a single configuration possible."
+        },
         "error": {
             "connection.error": "A network error has occurred. Try later.",
             "unauthorized.error": "An authorization error has occurred. Most likely, you are authorized on another resource."
@@ -43,9 +48,13 @@
             },
             "phone": {
                 "data": {
+                    "enable_sip": "Answer calls in Home Assistant (built-in SIP client)",
                     "phone": "Phone number",
                     "scan_interval": "Scan interval in seconds [PRO]",
                     "timeout": "Timeout of requests in seconds [PRO]"
+                },
+                "data_description": {
+                    "enable_sip": "Off by default: call state and cameras work without it, but answering a call requires either this client or a PBX registered with the operator."
                 },
                 "description": "If you change your phone number, authorization will start from the very beginning.",
                 "title": "Tattelecom Intercom settings"
