@@ -14,7 +14,9 @@ from homeassistant.const import (
 from homeassistant.core import CALLBACK_TYPE, Event, HomeAssistant
 
 from .const import (
+    CONF_ENABLE_SIP,
     CONF_PHONE,
+    DEFAULT_ENABLE_SIP,
     DEFAULT_SCAN_INTERVAL,
     DEFAULT_TIMEOUT,
     DOMAIN,
@@ -48,6 +50,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         get_config_value(entry, CONF_TOKEN),
         get_config_value(entry, CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL),
         get_config_value(entry, CONF_TIMEOUT, DEFAULT_TIMEOUT),
+        get_config_value(entry, CONF_ENABLE_SIP, DEFAULT_ENABLE_SIP),
     )
 
     await _updater.async_init()
@@ -63,6 +66,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await _updater.async_config_entry_first_refresh()
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+
+    # Registering the FCM device talks to Google and to the operator; keep it
+    # out of the setup path so a slow or failing push service cannot delay or
+    # break the rest of the integration.
+    entry.async_create_background_task(
+        hass, _updater.async_start_push(), name=f"{DOMAIN} push start"
+    )
 
     async def async_stop(event: Event) -> None:
         """Async stop"""
