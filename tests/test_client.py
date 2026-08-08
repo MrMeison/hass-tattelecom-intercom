@@ -16,7 +16,7 @@ from pytest_httpx import HTTPXMock
 
 from custom_components.tattelecom_intercom.client import IntercomClient
 from custom_components.tattelecom_intercom.const import DEVICE_CODE
-from custom_components.tattelecom_intercom.enum import Method
+from custom_components.tattelecom_intercom.enum import ApiVersion, Method
 from custom_components.tattelecom_intercom.exceptions import (
     IntercomConnectionError,
     IntercomNotFoundError,
@@ -269,18 +269,14 @@ async def test_update_push_token(hass: HomeAssistant, httpx_mock: HTTPXMock) -> 
 
     request: Request | None = httpx_mock.get_request(method=Method.POST)
     assert request is not None
-    assert request.url == get_url("subscriber/update-push-token")
+    # v2 with the raw token in the body and no device_code — the contract was
+    # read out of the decompiled app and confirmed on the wire (HTTP 200).
+    assert request.url == get_url("subscriber/update-push-token", api_version=ApiVersion.V2)
     assert request.method == Method.POST
-    assert dict(request.headers.items()) == {
-        "accept": "application/json",
-        "accept-charset": "UTF-8",
-        "accept-encoding": "gzip",
-        "access-token": "test",
-        "connection": "keep-alive",
-        "content-length": "109",
-        "content-type": "application/json",
-        "host": "domofon.tattelecom.ru",
-        "user-agent": "Ktor client",
+    assert request.headers["access-token"] == MOCK_TOKEN
+    assert json.loads(request.content) == {
+        "push_service": "fcm",
+        "push_token": "test",
     }
 
 

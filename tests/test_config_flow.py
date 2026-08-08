@@ -49,7 +49,7 @@ async def test_config_flow(hass: HomeAssistant) -> None:
         DOMAIN, context={"source": config_entries.SOURCE_USER}
     )
 
-    assert result_init["type"] == data_entry_flow.RESULT_TYPE_FORM
+    assert result_init["type"] == data_entry_flow.FlowResultType.FORM
     assert result_init["handler"] == DOMAIN
     assert result_init["step_id"] == "phone"
 
@@ -88,7 +88,8 @@ async def test_config_flow(hass: HomeAssistant) -> None:
         assert result_configure["data"][CONF_SMS_CODE] == MOCK_CODE
         assert result_configure["data"][CONF_TOKEN] == MOCK_TOKEN
 
-        assert len(mock_client.mock_calls) == 4
+        # client constructor + signin + sms_confirm
+        assert len(mock_client.mock_calls) == 3
         assert len(mock_async_setup_entry.mock_calls) == 1
 
 
@@ -105,7 +106,7 @@ async def test_config_flow_step_phone_connection_error(hass: HomeAssistant) -> N
         DOMAIN, context={"source": config_entries.SOURCE_USER}
     )
 
-    assert result_init["type"] == data_entry_flow.RESULT_TYPE_FORM
+    assert result_init["type"] == data_entry_flow.FlowResultType.FORM
     assert result_init["handler"] == DOMAIN
     assert result_init["step_id"] == "phone"
 
@@ -147,7 +148,7 @@ async def test_config_flow_step_phone_other_error(hass: HomeAssistant) -> None:
         DOMAIN, context={"source": config_entries.SOURCE_USER}
     )
 
-    assert result_init["type"] == data_entry_flow.RESULT_TYPE_FORM
+    assert result_init["type"] == data_entry_flow.FlowResultType.FORM
     assert result_init["handler"] == DOMAIN
     assert result_init["step_id"] == "phone"
 
@@ -191,7 +192,7 @@ async def test_config_flow_step_confirm_unauthorized_error(hass: HomeAssistant) 
         DOMAIN, context={"source": config_entries.SOURCE_USER}
     )
 
-    assert result_init["type"] == data_entry_flow.RESULT_TYPE_FORM
+    assert result_init["type"] == data_entry_flow.FlowResultType.FORM
     assert result_init["handler"] == DOMAIN
     assert result_init["step_id"] == "phone"
 
@@ -246,7 +247,7 @@ async def test_config_flow_step_confirm_connection_error(hass: HomeAssistant) ->
         DOMAIN, context={"source": config_entries.SOURCE_USER}
     )
 
-    assert result_init["type"] == data_entry_flow.RESULT_TYPE_FORM
+    assert result_init["type"] == data_entry_flow.FlowResultType.FORM
     assert result_init["handler"] == DOMAIN
     assert result_init["step_id"] == "phone"
 
@@ -301,7 +302,7 @@ async def test_config_flow_step_confirm_other_error(hass: HomeAssistant) -> None
         DOMAIN, context={"source": config_entries.SOURCE_USER}
     )
 
-    assert result_init["type"] == data_entry_flow.RESULT_TYPE_FORM
+    assert result_init["type"] == data_entry_flow.FlowResultType.FORM
     assert result_init["handler"] == DOMAIN
     assert result_init["step_id"] == "phone"
 
@@ -379,7 +380,7 @@ async def test_options_flow(hass: HomeAssistant) -> None:
             config_entry.entry_id
         )
 
-        assert result_init["type"] == data_entry_flow.RESULT_TYPE_FORM
+        assert result_init["type"] == data_entry_flow.FlowResultType.FORM
         assert result_init["step_id"] == "phone"
 
         assert CONF_TIMEOUT not in config_entry.options
@@ -395,7 +396,7 @@ async def test_options_flow(hass: HomeAssistant) -> None:
         )
         await hass.async_block_till_done()
 
-        assert result_save["type"] == data_entry_flow.RESULT_TYPE_CREATE_ENTRY
+        assert result_save["type"] == data_entry_flow.FlowResultType.CREATE_ENTRY
 
         assert config_entry.options[CONF_PHONE] == MOCK_PHONE
         assert config_entry.options[CONF_SMS_CODE] == MOCK_CODE
@@ -442,7 +443,7 @@ async def test_options_flow_change_phone(hass: HomeAssistant) -> None:
             config_entry.entry_id
         )
 
-        assert result_init["type"] == data_entry_flow.RESULT_TYPE_FORM
+        assert result_init["type"] == data_entry_flow.FlowResultType.FORM
         assert result_init["step_id"] == "phone"
 
         result_save = await hass.config_entries.options.async_configure(
@@ -455,7 +456,7 @@ async def test_options_flow_change_phone(hass: HomeAssistant) -> None:
         )
         await hass.async_block_till_done()
 
-        assert result_save["type"] == data_entry_flow.RESULT_TYPE_FORM
+        assert result_save["type"] == data_entry_flow.FlowResultType.FORM
         assert result_save["step_id"] == "confirm"
 
         result_save = await hass.config_entries.options.async_configure(
@@ -466,7 +467,7 @@ async def test_options_flow_change_phone(hass: HomeAssistant) -> None:
         )
         await hass.async_block_till_done()
 
-        assert result_save["type"] == data_entry_flow.RESULT_TYPE_CREATE_ENTRY
+        assert result_save["type"] == data_entry_flow.FlowResultType.CREATE_ENTRY
 
         assert config_entry.options[CONF_PHONE] == MOCK_PHONE
         assert config_entry.options[CONF_SMS_CODE] == MOCK_CODE
@@ -513,7 +514,7 @@ async def test_options_flow_change_phone_connection_error(hass: HomeAssistant) -
             config_entry.entry_id
         )
 
-        assert result_init["type"] == data_entry_flow.RESULT_TYPE_FORM
+        assert result_init["type"] == data_entry_flow.FlowResultType.FORM
         assert result_init["step_id"] == "phone"
 
         result_save = await hass.config_entries.options.async_configure(
@@ -526,7 +527,7 @@ async def test_options_flow_change_phone_connection_error(hass: HomeAssistant) -
         )
         await hass.async_block_till_done()
 
-        assert result_save["type"] == data_entry_flow.RESULT_TYPE_FORM
+        assert result_save["type"] == data_entry_flow.FlowResultType.FORM
         assert result_save["step_id"] == "phone"
         assert result_save["errors"]["base"] == "connection.error"
 
@@ -569,7 +570,7 @@ async def test_options_flow_change_phone_other_error(hass: HomeAssistant) -> Non
             config_entry.entry_id
         )
 
-        assert result_init["type"] == data_entry_flow.RESULT_TYPE_FORM
+        assert result_init["type"] == data_entry_flow.FlowResultType.FORM
         assert result_init["step_id"] == "phone"
 
         result_save = await hass.config_entries.options.async_configure(
@@ -582,6 +583,130 @@ async def test_options_flow_change_phone_other_error(hass: HomeAssistant) -> Non
         )
         await hass.async_block_till_done()
 
-        assert result_save["type"] == data_entry_flow.RESULT_TYPE_FORM
+        assert result_save["type"] == data_entry_flow.FlowResultType.FORM
         assert result_save["step_id"] == "phone"
         assert result_save["errors"]["base"] == "error"
+
+
+@pytest.mark.asyncio
+async def test_reconfigure_flow(hass: HomeAssistant) -> None:
+    """Test reconfigure flow issues a fresh token in place.
+
+    :param hass: HomeAssistant
+    """
+
+    config_entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            CONF_PHONE: MOCK_PHONE,
+            CONF_TOKEN: "stale-token",
+        },
+        options={
+            CONF_PHONE: MOCK_PHONE,
+            CONF_TOKEN: "stale-token",
+            CONF_TIMEOUT: DEFAULT_TIMEOUT,
+        },
+        unique_id=str(MOCK_PHONE),
+    )
+    config_entry.add_to_hass(hass)
+
+    await setup.async_setup_component(hass, "http", {})
+
+    with patch(
+        "custom_components.tattelecom_intercom.async_setup_entry",
+        return_value=True,
+    ), patch(
+        "custom_components.tattelecom_intercom.config_flow.IntercomClient"
+    ) as mock_client:
+        await async_mock_client(mock_client)
+
+        result_init = await config_entry.start_reconfigure_flow(hass)
+
+        assert result_init["type"] == data_entry_flow.FlowResultType.FORM
+        assert result_init["step_id"] == "phone"
+
+        result_confirm = await hass.config_entries.flow.async_configure(
+            result_init["flow_id"],
+            {CONF_PHONE: MOCK_PHONE},
+        )
+
+        assert result_confirm["step_id"] == "confirm"
+
+        result_done = await hass.config_entries.flow.async_configure(
+            result_init["flow_id"],
+            {CONF_SMS_CODE: MOCK_CODE},
+        )
+        await hass.async_block_till_done()
+
+    assert result_done["type"] == data_entry_flow.FlowResultType.ABORT
+    assert result_done["reason"] == "reconfigure_successful"
+
+    # The entry is updated in place: same entry_id, fresh token in both data
+    # and options (get_config_value reads options first).
+    assert config_entry.data[CONF_TOKEN] == MOCK_TOKEN
+    assert config_entry.options[CONF_TOKEN] == MOCK_TOKEN
+    assert config_entry.options[CONF_TIMEOUT] == DEFAULT_TIMEOUT
+    assert len(hass.config_entries.async_entries(DOMAIN)) == 1
+
+
+@pytest.mark.asyncio
+async def test_reauth_flow_reopen_without_input(hass: HomeAssistant) -> None:
+    """Reopening an in-progress reauth flow must redraw the form, not 500.
+
+    Home Assistant re-runs the current step with user_input=None whenever the
+    frontend loads a flow that already exists.
+
+    :param hass: HomeAssistant
+    """
+
+    config_entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_PHONE: MOCK_PHONE, CONF_TOKEN: "stale-token"},
+        unique_id=str(MOCK_PHONE),
+    )
+    config_entry.add_to_hass(hass)
+
+    await setup.async_setup_component(hass, "http", {})
+
+    with patch(
+        "custom_components.tattelecom_intercom.async_setup_entry",
+        return_value=True,
+    ), patch(
+        "custom_components.tattelecom_intercom.config_flow.IntercomClient"
+    ) as mock_client:
+        await async_mock_client(mock_client)
+
+        result_init = await config_entry.start_reauth_flow(hass)
+
+        assert result_init["type"] == data_entry_flow.FlowResultType.FORM
+        assert result_init["step_id"] == "phone"
+
+        # What the frontend does on reload — no input at all.
+        result_reopen = await hass.config_entries.flow.async_configure(
+            result_init["flow_id"]
+        )
+
+        assert result_reopen["type"] == data_entry_flow.FlowResultType.FORM
+        assert result_reopen["step_id"] == "phone"
+
+        result_confirm = await hass.config_entries.flow.async_configure(
+            result_init["flow_id"], {CONF_PHONE: MOCK_PHONE}
+        )
+
+        assert result_confirm["step_id"] == "confirm"
+
+        # And once more on the SMS step.
+        result_reopen = await hass.config_entries.flow.async_configure(
+            result_init["flow_id"]
+        )
+
+        assert result_reopen["step_id"] == "confirm"
+
+        result_done = await hass.config_entries.flow.async_configure(
+            result_init["flow_id"], {CONF_SMS_CODE: MOCK_CODE}
+        )
+        await hass.async_block_till_done()
+
+    assert result_done["type"] == data_entry_flow.FlowResultType.ABORT
+    assert result_done["reason"] == "reauth_successful"
+    assert config_entry.data[CONF_TOKEN] == MOCK_TOKEN
