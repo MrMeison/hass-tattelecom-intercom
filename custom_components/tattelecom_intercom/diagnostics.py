@@ -48,4 +48,13 @@ async def async_get_config_entry_diagnostics(
         if _updater.voip and _updater.voip.diagnostics:
             _data |= _updater.voip.diagnostics
 
+        if _updater.push and _updater.push.diagnostics:
+            _data |= _updater.push.diagnostics
+
+        _data["call"] = {
+            "state": _updater.call_state.value,
+            "sip_enabled": _updater.enable_sip,
+            "info": async_redact_data(_updater.call_info, TO_REDACT),
+        }
+
     return _data

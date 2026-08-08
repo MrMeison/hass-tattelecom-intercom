@@ -123,7 +123,6 @@ class IntercomSensor(IntercomEntity, SensorEntity):
         IntercomEntity.__init__(self, unique_id, description, updater, ENTITY_ID_FORMAT)
 
         voip = updater.voip
-        last_call = updater.last_call
 
         self._attr_available: bool = updater.data.get(ATTR_UPDATE_STATE, False) or (
             voip is not None
@@ -134,11 +133,9 @@ class IntercomSensor(IntercomEntity, SensorEntity):
                 voip.status.value if voip else VoipState.INACTIVE.value
             )
         elif description.key == SENSOR_CALL_STATE:
-            self._attr_native_value = str(
-                last_call.state.value
-                if last_call
-                else CallState.ENDED.value
-            )
+            # Fed by the SIP client when it is enabled and by push notifications
+            # otherwise, so call state is reported either way.
+            self._attr_native_value = str(updater.call_state.value)
 
         self._change_icon()
 
@@ -172,7 +169,6 @@ class IntercomSensor(IntercomEntity, SensorEntity):
         """Update state."""
 
         voip = self._updater.voip
-        last_call = self._updater.last_call
 
         is_available: bool = self._updater.data.get(ATTR_UPDATE_STATE, False) or (
             voip is not None
@@ -187,11 +183,7 @@ class IntercomSensor(IntercomEntity, SensorEntity):
                 else VoipState.INACTIVE.value
             )
         elif self.entity_description.key == SENSOR_CALL_STATE:
-            native_value = str(
-                last_call.state.value
-                if last_call
-                else CallState.ENDED.value
-            )
+            native_value = str(self._updater.call_state.value)
 
         if (
             self._attr_native_value == native_value

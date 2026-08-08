@@ -216,13 +216,14 @@ class IntercomCamera(IntercomEntity, GenericCamera):
 
         key: str = f"{self.entity_description.key}_{ATTR_STREAM_URL}"
 
+        # Call state comes from the SIP client or, when it is disabled, from the
+        # push notification — the incoming camera follows either source.
         if (
             self.entity_description.key == CAMERA_INCOMING
-            and self._updater.last_call
-            and self._updater.last_call.login in self._updater.code_map
-            and self._updater.last_call.state in (CallState.RINGING, CallState.ANSWERED)
+            and self._updater.call_login in self._updater.code_map
+            and self._updater.call_state in (CallState.RINGING, CallState.ANSWERED)
         ):
-            key = f"{self._updater.code_map[self._updater.last_call.login]}_{ATTR_STREAM_URL}"
+            key = f"{self._updater.code_map[self._updater.call_login]}_{ATTR_STREAM_URL}"
 
         _stream_url: str = self._updater.data.get(key, "")
 

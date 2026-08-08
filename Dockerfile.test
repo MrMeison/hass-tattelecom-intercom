@@ -15,4 +15,4 @@ COPY tests/ tests/
 
 ENV PYTHONPATH=/app
 
-CMD ["python", "-m", "pytest", "tests/", "-v", "--tb=short"]
+CMD ["python", "-m", "pytest", "tests/", "-v", "--tb=short", "--timeout=60", "--timeout-method=signal"]

@@ -143,18 +143,20 @@ async def async_mock_call(
 def get_url(
     path: str,
     query_params: dict | None = None,
+    api_version: ApiVersion = ApiVersion.V1,
 ) -> str:
     """Generate url
 
     :param path: str
     :param query_params: dict | None
+    :param api_version: ApiVersion
     :return: str
     """
 
     if query_params is not None and len(query_params) > 0:
         path += f"?{urllib.parse.urlencode(query_params, doseq=True)}"
 
-    return CLIENT_URL.format(api_version=ApiVersion.V1, path=path)
+    return CLIENT_URL.format(api_version=api_version, path=path)
 
 
 def get_audio_fixture_path(file_name: str) -> str:

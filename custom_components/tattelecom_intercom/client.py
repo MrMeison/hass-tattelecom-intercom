@@ -18,6 +18,7 @@ from .const import (
     DIAGNOSTIC_MESSAGE,
     HEADERS,
     DEVICE_OS,
+    PUSH_SERVICE_FCM,
 )
 from .enum import ApiVersion, Method
 from .exceptions import (
@@ -159,6 +160,29 @@ class IntercomClient:
                 "phone": str(self._phone),
                 "sms_code": code,
                 "device_os_id": DEVICE_OS,
+            },
+            api_version=ApiVersion.V2,
+        )
+
+    async def update_push_token(
+        self, push_token: str, push_service: str = PUSH_SERVICE_FCM
+    ) -> dict:
+        """Register a push token for the current session
+
+        Without a registered token the operator never pushes an incoming call
+        and, in turn, never rings this subscriber over SIP.
+
+        :param push_token: str: Raw push token
+        :param push_service: str: Push service (fcm, hms, rustore)
+        :return dict: Response data
+        """
+
+        return await self.request(
+            "subscriber/update-push-token",
+            Method.POST,
+            {
+                "push_service": push_service,
+                "push_token": push_token,
             },
             api_version=ApiVersion.V2,
         )

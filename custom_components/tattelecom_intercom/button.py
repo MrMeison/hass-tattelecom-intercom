@@ -149,6 +149,26 @@ class IntercomButton(IntercomEntity, ButtonEntity):
         if device_info:
             self._attr_device_info = device_info
 
+    @property
+    def available(self) -> bool:
+        """Is available
+
+        Answering a call needs the built-in SIP client. It is optional (a PBX
+        may handle calls instead, or nobody does), so these buttons disappear
+        when it is off — opening a door goes over the API and always works.
+
+        :return bool: Is available
+        """
+
+        if self.entity_description.key in (
+            BUTTON_ANSWER,
+            BUTTON_DECLINE,
+            BUTTON_HANGUP,
+        ):
+            return self.coordinator.last_update_success and self._updater.voip is not None
+
+        return self.coordinator.last_update_success
+
     async def async_press(self) -> None:
         """Async press action."""
 

@@ -10,4 +10,7 @@ coverage>=6.3.2
 pytest>=7.1.1
 pytest-cov>=2.12.1
 pytest-httpx>=0.20.0
+# A hung test used to take the whole machine down (busy loops starve the event
+# loop, pytest never returns) — every test gets a hard deadline instead.
+pytest-timeout>=2.3.0
 ha-ffmpeg>=3.0.2

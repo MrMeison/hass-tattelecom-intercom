@@ -60,6 +60,7 @@ class IntercomVoip:
         password: str,
         callback: Callable,
         synchronous: bool = False,
+        reg_expire_time: int | None = None,
     ) -> None:
         """Initialize Intercom Voip
 
@@ -70,6 +71,9 @@ class IntercomVoip:
         :param password: str: SIP password
         :param callback: Callable: Voip callback
         :param synchronous: bool: Synchronous call callback
+        :param reg_expire_time: int | None: Server-requested registration
+            expiry (subscriber/sipsettings -> reg_expire_time); passed through
+            to the SIP layer so re-registration matches the reference client.
         """
 
         self.hass = hass
@@ -95,6 +99,7 @@ class IntercomVoip:
             self._callback,
             self._change_status,
             self.debug,
+            expires=reg_expire_time,
         )
 
     @cached_property

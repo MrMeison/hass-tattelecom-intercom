@@ -77,6 +77,7 @@ class IntercomSip:
 
     _local_ip: str
     _local_port: int
+    _expires: int
 
     _state: _SipState = _SipState.STOPPED
     _internet_connect: bool = True
@@ -106,6 +107,7 @@ class IntercomSip:
         callback: Callable,
         status_callback: Callable,
         debug_callback: Callable,
+        expires: int | None = None,
     ) -> None:
         """Initialize Intercom Sip
 
@@ -118,6 +120,10 @@ class IntercomSip:
         :param callback: Callable: Voip callback
         :param status_callback: Callable: Voip status callback
         :param debug_callback: Callable: Voip debug callback
+        :param expires: int | None: Requested registration expiry (seconds).
+            The server (subscriber/sipsettings -> reg_expire_time) expects the
+            client to re-register on this cadence; the reference belle-sip app
+            honours it. When omitted, falls back to SIP_EXPIRES.
         """
 
         self.hass = hass
@@ -131,6 +137,7 @@ class IntercomSip:
         self._local_ip = local_ip
         self._local_port = SIP_PORT
         self._reg_urn_uuid = self._urn_uuid
+        self._expires = expires if expires and expires > 0 else SIP_EXPIRES
 
         self._in: socket.socket | None = None
         self._out: socket.socket | None = None
@@ -379,7 +386,14 @@ class IntercomSip:
             try:
                 raw = self._in.recv(8192)
 
-                if raw not in (b"\x00\x00\x00\x00", b"\r\n") and len(raw) > 0:
+                if not raw:
+                    # Same trap as in rtp.py: an empty read must yield, or this
+                    # loop spins and starves the event loop.
+                    await asyncio.sleep(0.01)
+
+                    continue
+
+                if raw not in (b"\x00\x00\x00\x00", b"\r\n"):
                     _recv_count += 1
                     _LOGGER.debug(
                         "SIP _recv: packet #%d, %d bytes, first 80: %r",
@@ -502,7 +516,7 @@ class IntercomSip:
             )
 
         if self._state in (_SipState.STARTING, _SipState.RUNNING):
-            expire_time = SIP_EXPIRES
+            expire_time = self._expires
             contact = message.headers.get("Contact", "")
             if isinstance(contact, str):
                 match = re.search(r"expires=(\d+)", contact)
@@ -878,7 +892,7 @@ class IntercomSip:
             "Accept: application/vnd.gsma.rcs-ft-http+xml\r\n"
             f"Contact: <sip:{self._username}@{contact_ip}:{contact_port};"
             f'transport=udp>;+sip.instance="<urn:uuid:{urn_uuid}>"\r\n'
-            f"Expires: {SIP_EXPIRES if register else 0}\r\n"
+            f"Expires: {self._expires if register else 0}\r\n"
             f"User-Agent: {SIP_USER_AGENT}"
             f"{authorization}"
             "\r\n\r\n"
