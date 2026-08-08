@@ -16,7 +16,8 @@
   "issue_tracker": "https://github.com/dmamontov/hass-tattelecom-intercom/issues",
   "quality_scale": "platinum",
   "requirements": [
-    "httpx[http2]"
+    "httpx[http2]",
+    "firebase-messaging>=0.4.5,<0.5"
   ],
-  "version": "2.3.0"
+  "version": "2.4.0"
 }
